@@ -1,0 +1,112 @@
+{% extends "analysis/base.html" %}
+{% block title %}{{ dataset.name }} – WeatherExtremes{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-end justify-content-between mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ dataset.name }}</h1>
+    <div class="text-muted">
+      Uploaded {{ dataset.created_at|date:"Y-m-d H:i" }}
+      &middot; {{ dataset.row_count|default:"—" }} rows
+      {% if dataset.min_year %}&middot; {{ dataset.min_year|floatformat:1 }} – {{ dataset.max_year|floatformat:1 }}{% endif %}
+    </div>
+    <div class="mt-2">
+      {% for col in dataset.indicator_columns %}<span class="summary-pill">{{ col }}</span>{% endfor %}
+    </div>
+  </div>
+  <div class="btn-group">
+    {% if dataset.source_station %}
+    <a class="btn btn-outline-primary" href="{% url 'analysis:gev_create' dataset.pk %}">Run GEV analysis</a>
+    {% endif %}
+    <a class="btn btn-primary" href="{% url 'analysis:run_create' dataset.pk %}">New occurrence-rate run</a>
+  </div>
+</div>
+
+{% if dataset.description %}
+<div class="card p-3 mb-3"><div class="text-muted small">Description</div>{{ dataset.description|linebreaks }}</div>
+{% endif %}
+
+{% if dataset.source_station %}
+<div class="card p-3 mb-3">
+  <div class="text-muted small">Source</div>
+  <div>
+    GHCN station <code>{{ dataset.source_station.id }}</code> – {{ dataset.source_station.name|title }}
+    ({{ dataset.source_station.state }})
+  </div>
+  {% if dataset.source_metadata %}
+  <div class="small text-muted mt-2">
+    Element <strong>{{ dataset.source_metadata.element }}</strong>
+    {{ dataset.source_metadata.operator }}
+    [{% for t in dataset.source_metadata.thresholds_display %}{{ t }}{% if not forloop.last %}, {% endif %}{% endfor %}]
+    {{ dataset.source_metadata.display_unit }}
+    &middot; range {{ dataset.source_metadata.actual_start }} to {{ dataset.source_metadata.actual_end }}
+    &middot; {{ dataset.source_metadata.observations_with_value }} observations
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<h2 class="h5 mt-4">Runs against this dataset</h2>
+{% if runs %}
+<table class="table table-sm table-hover table-runs bg-white">
+  <thead>
+    <tr>
+      <th>Label</th>
+      <th>Indicator</th>
+      <th class="numeric">Bandwidth (yr)</th>
+      <th class="numeric">Events</th>
+      <th class="numeric">Peak yr</th>
+      <th>Status</th>
+      <th>Created</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for run in runs %}
+    <tr>
+      <td><a href="{{ run.get_absolute_url }}">{{ run.display_label }}</a></td>
+      <td>{{ run.parameters.indicator_column|default:"—" }}</td>
+      <td class="numeric">{{ run.parameters.bandwidth_years|default:"—" }}</td>
+      <td class="numeric">{{ run.summary.event_count|default:"—" }}</td>
+      <td class="numeric">{{ run.summary.peak_year|default_if_none:"—"|floatformat:2 }}</td>
+      <td><span class="badge bg-{% if run.status == 'success' %}success{% elif run.status == 'failed' %}danger{% else %}secondary{% endif %}">{{ run.get_status_display }}</span></td>
+      <td>{{ run.created_at|date:"Y-m-d H:i" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="card p-3 text-muted">No runs yet for this dataset.</div>
+{% endif %}
+
+{% if gev_runs %}
+<h2 class="h5 mt-4">GEV runs</h2>
+<table class="table table-sm table-hover table-runs bg-white">
+  <thead>
+    <tr>
+      <th>Label</th>
+      <th>Element</th>
+      <th class="numeric">μ</th>
+      <th class="numeric">σ</th>
+      <th class="numeric">ξ</th>
+      <th class="numeric">Log-lik</th>
+      <th>Status</th>
+      <th>Created</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in gev_runs %}
+    <tr>
+      <td><a href="{{ r.get_absolute_url }}">{{ r.display_label }}</a></td>
+      <td>{{ r.parameters.element|default:"—" }}</td>
+      <td class="numeric">{{ r.summary.location|default_if_none:"—"|floatformat:2 }}</td>
+      <td class="numeric">{{ r.summary.scale|default_if_none:"—"|floatformat:2 }}</td>
+      <td class="numeric">{{ r.summary.shape|default_if_none:"—"|floatformat:3 }}</td>
+      <td class="numeric">{{ r.summary.log_likelihood|default_if_none:"—"|floatformat:1 }}</td>
+      <td><span class="badge bg-{% if r.status == 'success' %}success{% elif r.status == 'failed' %}danger{% else %}secondary{% endif %}">{{ r.get_status_display }}</span></td>
+      <td>{{ r.created_at|date:"Y-m-d H:i" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

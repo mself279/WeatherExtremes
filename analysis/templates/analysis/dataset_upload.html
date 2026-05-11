@@ -1,0 +1,44 @@
+{% extends "analysis/base.html" %}
+{% block title %}Upload dataset – WeatherExtremes{% endblock %}
+
+{% block content %}
+<h1 class="h3 mb-1">Upload a dataset</h1>
+<p class="text-muted mb-4">
+  CSV with an <code>Event_Date</code> column (fractional years) and one or more 0/1 indicator columns
+  such as <code>Over3</code>, <code>Over4</code>.
+</p>
+
+<form method="post" enctype="multipart/form-data" class="card p-4" novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+    <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+  {% endif %}
+  {% for field in form %}
+  <div class="mb-3">
+    <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+    {{ field }}
+    {% if field.help_text %}<div class="form-help">{{ field.help_text }}</div>{% endif %}
+    {% if field.errors %}<div class="text-danger small mt-1">{{ field.errors|join:", " }}</div>{% endif %}
+  </div>
+  {% endfor %}
+  <div class="d-flex justify-content-between">
+    <a href="{% url 'analysis:dataset_list' %}" class="btn btn-link">Cancel</a>
+    <button type="submit" class="btn btn-primary">Upload</button>
+  </div>
+</form>
+
+<div class="alert alert-info mt-3 small mb-0">
+  <strong>Tip.</strong> The file is validated on upload — we'll detect the indicator columns automatically.
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  // Add Bootstrap classes to Django's auto-rendered widgets.
+  document.querySelectorAll('form input, form textarea, form select').forEach(el => {
+    if (el.type === 'file') el.classList.add('form-control');
+    else if (el.tagName === 'SELECT') el.classList.add('form-select');
+    else el.classList.add('form-control');
+  });
+</script>
+{% endblock %}

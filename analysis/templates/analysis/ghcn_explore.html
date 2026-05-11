@@ -1,0 +1,178 @@
+{% extends "analysis/base.html" %}
+{% block title %}Explore {{ station.id }} – WeatherExtremes{% endblock %}
+
+{% block extra_head %}
+<style>
+  .id-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .station-meta { color: #6b7280; }
+  .figure-card { padding: 1rem 1rem 0.5rem; background: #fff; border-radius: 0.5rem;
+                 border: 1px solid #e5e7eb; margin-bottom: 1rem; }
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+                gap: 0.6rem; margin-bottom: 0.75rem; }
+  .stat { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0.4rem;
+          padding: 0.4rem 0.6rem; }
+  .stat .lbl { color: #6b7280; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .stat .val { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 0.95rem; }
+  .threshold-pill { display: inline-block; font-size: 0.78rem;
+                    padding: 0.15rem 0.5rem; border-radius: 999px;
+                    margin: 0.1rem 0.2rem 0.1rem 0;
+                    background: #eef2ff; color: #3730a3; white-space: nowrap; }
+</style>
+{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb small">
+    <li class="breadcrumb-item"><a href="{% url 'analysis:dataset_list' %}">Datasets</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'analysis:ghcn_browse' %}">Import from GHCN</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'analysis:ghcn_configure' station.id %}">{{ station.id }}</a></li>
+    <li class="breadcrumb-item active">Explore</li>
+  </ol>
+</nav>
+
+<div class="d-flex align-items-end justify-content-between mb-2">
+  <div>
+    <h1 class="h3 mb-1">Explore {{ station.name|title }}</h1>
+    <div class="station-meta small">
+      <span class="id-mono">{{ station.id }}</span>
+      &middot; {{ station.state }}
+      &middot; {{ station.latitude|floatformat:4 }}, {{ station.longitude|floatformat:4 }}
+      {% if station.elevation %}&middot; {{ station.elevation|floatformat:0 }} m{% endif %}
+    </div>
+  </div>
+  <a class="btn btn-link btn-sm" href="{% url 'analysis:ghcn_configure' station.id %}">&larr; Station landing</a>
+</div>
+
+<form method="get" class="card p-3 mb-3">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-3">
+      <label class="form-label small text-muted text-uppercase">Element</label>
+      <select class="form-select form-select-sm" name="element">
+        {% for code in valid_codes %}
+          {% with sp=specs|default_if_none:None %}
+          <option value="{{ code }}" {% if code == element %}selected{% endif %}>
+            {{ code }}{% for c, s in specs.items %}{% if c == code %} – {{ s.label }}{% endif %}{% endfor %}
+          </option>
+          {% endwith %}
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small text-muted text-uppercase">Operator</label>
+      <select class="form-select form-select-sm" name="operator">
+        {% for val, label in operator_choices %}
+          <option value="{{ val }}" {% if val == operator %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-5">
+      <label class="form-label small text-muted text-uppercase">
+        Thresholds {% if spec %}({{ spec.display_unit }}){% endif %}
+      </label>
+      <input class="form-control form-control-sm" type="text" name="thresholds"
+             value="{{ thresholds_str }}" placeholder="e.g. 90, 95, 100">
+    </div>
+    <div class="col-md-2">
+      <button class="btn btn-primary btn-sm w-100" type="submit">Update</button>
+    </div>
+  </div>
+</form>
+
+{% if load_error %}
+  <div class="alert alert-danger">
+    <strong>Could not load station data:</strong> {{ load_error }}
+  </div>
+{% endif %}
+
+{% if summary_blob %}
+<div class="row g-3 mb-3">
+  {% if summary_blob.completeness %}
+  <div class="col-md-4">
+    <div class="figure-card">
+      <h2 class="h6 text-uppercase text-muted">Coverage</h2>
+      <div class="stats-grid">
+        <div class="stat"><div class="lbl">Years</div>
+          <div class="val">{{ summary_blob.completeness.first_year }}–{{ summary_blob.completeness.last_year }}</div></div>
+        <div class="stat"><div class="lbl">Total obs</div>
+          <div class="val">{{ summary_blob.completeness.total_obs }}</div></div>
+        <div class="stat"><div class="lbl">Years ≥95% complete</div>
+          <div class="val">{{ summary_blob.completeness.years_at_or_above_95pct }}</div></div>
+        <div class="stat"><div class="lbl">Years &lt;70%</div>
+          <div class="val">{{ summary_blob.completeness.years_below_70pct }}</div></div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  {% if summary_blob.distribution %}
+  <div class="col-md-4">
+    <div class="figure-card">
+      <h2 class="h6 text-uppercase text-muted">Distribution ({{ summary_blob.distribution.display_unit }})</h2>
+      <div class="stats-grid">
+        <div class="stat"><div class="lbl">Median</div>
+          <div class="val">{{ summary_blob.distribution.quantiles.p50|floatformat:2 }}</div></div>
+        <div class="stat"><div class="lbl">90th pct</div>
+          <div class="val">{{ summary_blob.distribution.quantiles.p90|floatformat:2 }}</div></div>
+        <div class="stat"><div class="lbl">99th pct</div>
+          <div class="val">{{ summary_blob.distribution.quantiles.p99|floatformat:2 }}</div></div>
+        <div class="stat"><div class="lbl">Max</div>
+          <div class="val">{{ summary_blob.distribution.quantiles.max|floatformat:2 }}</div></div>
+      </div>
+      {% if summary_blob.distribution.threshold_counts %}
+      <div class="small text-muted">Events per threshold:</div>
+      {% for thr, cnt in summary_blob.distribution.threshold_counts.items %}
+        <span class="threshold-pill">{{ operator }} {{ thr }} {{ summary_blob.distribution.display_unit }}: {{ cnt }}</span>
+      {% endfor %}
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+  {% if summary_blob.annual %}
+  <div class="col-md-4">
+    <div class="figure-card">
+      <h2 class="h6 text-uppercase text-muted">Annual {{ summary_blob.annual.direction }} trend</h2>
+      <div class="stats-grid">
+        <div class="stat"><div class="lbl">Years analyzed</div>
+          <div class="val">{{ summary_blob.annual.n_years }}</div></div>
+        <div class="stat"><div class="lbl">Trend</div>
+          <div class="val">{{ summary_blob.annual.trend_slope|floatformat:4 }} {{ summary_blob.annual.display_unit }}/yr</div></div>
+      </div>
+      <div class="small text-muted">
+        Direction is auto-selected per element: max for &gt; thresholds (PRCP, TMAX, wind), min for &lt; thresholds (TMIN).
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if figures %}
+<div class="figure-card"><div id="fig-completeness" style="height: 360px;"></div></div>
+<div class="figure-card"><div id="fig-distribution" style="height: 360px;"></div></div>
+<div class="figure-card"><div id="fig-annual"       style="height: 360px;"></div></div>
+<div class="figure-card"><div id="fig-frequency"    style="height: 360px;"></div></div>
+
+<div class="text-center my-4">
+  <a href="{% url 'analysis:ghcn_configure' station.id %}?{{ configure_query }}"
+     class="btn btn-success btn-lg">
+    Use these thresholds in Configure &rarr;
+  </a>
+  <div class="small text-muted mt-2">
+    Pre-fills the import form with element <code>{{ element }}</code>, operator <code>{{ operator }}</code>,
+    and thresholds you've explored. You'll still set start/end years and dataset name there.
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  function draw(id, fig) {
+    if (!fig || !document.getElementById(id)) return;
+    Plotly.newPlot(id, fig.data, fig.layout, {responsive: true, displaylogo: false});
+  }
+  {% if figures.completeness %}draw('fig-completeness', {{ figures.completeness|safe }});{% endif %}
+  {% if figures.distribution %}draw('fig-distribution', {{ figures.distribution|safe }});{% endif %}
+  {% if figures.annual %}      draw('fig-annual',       {{ figures.annual|safe }});{% endif %}
+  {% if figures.frequency %}   draw('fig-frequency',    {{ figures.frequency|safe }});{% endif %}
+</script>
+{% endblock %}

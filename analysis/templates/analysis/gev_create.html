@@ -1,0 +1,75 @@
+{% extends "analysis/base.html" %}
+{% block title %}GEV analysis – {{ dataset.name }}{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb small">
+    <li class="breadcrumb-item"><a href="{% url 'analysis:dataset_list' %}">Datasets</a></li>
+    <li class="breadcrumb-item"><a href="{{ dataset.get_absolute_url }}">{{ dataset.name }}</a></li>
+    <li class="breadcrumb-item active">GEV analysis</li>
+  </ol>
+</nav>
+
+<h1 class="h3 mb-1">Configure GEV analysis</h1>
+<p class="text-muted mb-4">
+  Fit a Generalized Extreme Value distribution to annual block extremes from
+  {% if dataset.source_station %}<code>{{ dataset.source_station.id }}</code> ({{ dataset.source_station.name|title }}){% endif %}.
+  Output: parameter estimates (μ, σ, ξ), 95% confidence intervals,
+  return-level curve, observed-vs-expected diagnostic, exceedance probability.
+</p>
+
+<form method="post" class="card p-4" novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+
+  <div class="row g-3">
+    <div class="col-md-6">
+      <h2 class="h6 text-uppercase text-muted">Inputs</h2>
+      {% for f in form %}
+        {% if f.name in 'label,element,direction,start_year,end_year,min_obs_per_year,drop_quality_failed' %}
+        <div class="mb-3">
+          <label class="form-label" for="{{ f.id_for_label }}">{{ f.label }}</label>
+          {{ f }}
+          {% if f.help_text %}<div class="form-help small text-muted">{{ f.help_text }}</div>{% endif %}
+          {% if f.errors %}<div class="text-danger small mt-1">{{ f.errors|join:", " }}</div>{% endif %}
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+    <div class="col-md-6">
+      <h2 class="h6 text-uppercase text-muted">Bootstrap &amp; diagnostics</h2>
+      {% for f in form %}
+        {% if f.name in 'bootstrap_method,bootstrap_iterations,bucket_width,reference_year,reference_value,rng_seed' %}
+        <div class="mb-3">
+          <label class="form-label" for="{{ f.id_for_label }}">{{ f.label }}</label>
+          {{ f }}
+          {% if f.help_text %}<div class="form-help small text-muted">{{ f.help_text }}</div>{% endif %}
+          {% if f.errors %}<div class="text-danger small mt-1">{{ f.errors|join:", " }}</div>{% endif %}
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="d-flex justify-content-between mt-2">
+    <a href="{{ dataset.get_absolute_url }}" class="btn btn-link">Cancel</a>
+    <button class="btn btn-primary" type="submit">Run GEV fit</button>
+  </div>
+</form>
+
+<div class="alert alert-info small mt-3">
+  Default of 500 bootstrap iterations runs in roughly 10–20 s on typical
+  station histories (~85 annual maxima). Setting it to 1000 matches academic
+  conventions but adds proportional time.
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  document.querySelectorAll('form input, form textarea, form select').forEach(el => {
+    if (el.type === 'checkbox') el.classList.add('form-check-input');
+    else if (el.tagName === 'SELECT') el.classList.add('form-select');
+    else el.classList.add('form-control');
+  });
+</script>
+{% endblock %}

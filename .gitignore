@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+
+# Virtualenvs
+.venv/
+venv/
+env/
+
+# Django
+*.sqlite3
+db.sqlite3*
+staticfiles/
+media/uploads/
+media/datasets/
+media/ghcn_cache/
+
+# Secrets
+.env
+.env.*
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+*.swp
+
+# Logs
+*.log
+
+# Build artifacts
+build/
+dist/

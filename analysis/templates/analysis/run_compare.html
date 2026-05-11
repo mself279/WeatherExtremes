@@ -1,0 +1,41 @@
+{% extends "analysis/base.html" %}
+{% block title %}Compare runs – WeatherExtremes{% endblock %}
+
+{% block content %}
+<h1 class="h3 mb-3">Compare runs</h1>
+
+<form method="get" class="card p-3 mb-3">
+  <div class="text-muted small mb-2">Select two or more successful runs:</div>
+  {% for run in all_runs %}
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" name="run" value="{{ run.pk }}"
+             id="run-{{ run.pk }}"
+             {% if selected_runs %}{% for s in selected_runs %}{% if s.pk == run.pk %}checked{% endif %}{% endfor %}{% endif %}>
+      <label class="form-check-label" for="run-{{ run.pk }}">
+        {{ run.display_label }}
+        <span class="text-muted small">— {{ run.dataset.name }} · h={{ run.parameters.bandwidth_years|default:"?" }}yr · {{ run.summary.event_count|default:"?" }} events</span>
+      </label>
+    </div>
+  {% empty %}
+    <div class="text-muted">No successful runs yet.</div>
+  {% endfor %}
+  <div class="mt-3">
+    <button class="btn btn-primary" type="submit">Compare</button>
+  </div>
+</form>
+
+{% if figure_json %}
+<div class="figure-card"><div id="fig-compare" style="height:480px;"></div></div>
+{% elif selected_runs %}
+<div class="alert alert-warning">Pick at least two runs to compare.</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+{% if figure_json %}
+<script>
+  const fig = {{ figure_json|safe }};
+  Plotly.newPlot('fig-compare', fig.data, fig.layout, {responsive: true, displaylogo: false});
+</script>
+{% endif %}
+{% endblock %}

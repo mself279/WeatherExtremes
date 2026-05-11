@@ -1,0 +1,167 @@
+{% extends "analysis/base.html" %}
+{% block title %}{{ station.name|title }} – WeatherExtremes{% endblock %}
+
+{% block extra_head %}
+<style>
+  .id-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .element-card { border: 1px solid #e5e7eb; border-radius: 0.4rem; padding: 0.5rem 0.7rem;
+                  margin-bottom: 0.35rem; }
+  .element-card .label { font-weight: 600; font-size: 0.85rem; }
+  .element-card .meta  { font-size: 0.78rem; color: #6b7280; }
+  .station-meta { color: #6b7280; }
+  .station-meta .badge { vertical-align: baseline; }
+  .existing-row td { vertical-align: middle; }
+  .threshold-pill { display: inline-block; font-size: 0.72rem; padding: 0.1rem 0.4rem;
+                    border-radius: 999px; margin: 0.05rem 0.15rem 0.05rem 0;
+                    background: #eef2ff; color: #3730a3; white-space: nowrap; }
+  .section-rule { border-top: 1px solid #e5e7eb; margin: 1.6rem 0 1.4rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb small">
+    <li class="breadcrumb-item"><a href="{% url 'analysis:dataset_list' %}">Datasets</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'analysis:ghcn_browse' %}">Import from GHCN</a></li>
+    <li class="breadcrumb-item active">{{ station.id }}</li>
+  </ol>
+</nav>
+
+<div class="d-flex align-items-end justify-content-between mb-2">
+  <div>
+    <h1 class="h3 mb-1">{{ station.name|title }}</h1>
+    <div class="station-meta small">
+      <span class="id-mono">{{ station.id }}</span>
+      &middot; {{ station.state }}
+      &middot; {{ station.latitude|floatformat:4 }}, {{ station.longitude|floatformat:4 }}
+      {% if station.elevation %}&middot; {{ station.elevation|floatformat:0 }} m{% endif %}
+      {% if station.hcn_flag %}&middot; <span class="badge bg-info text-dark">{{ station.hcn_flag }}</span>{% endif %}
+      {% if station.gsn_flag %}&middot; <span class="badge bg-secondary">{{ station.gsn_flag }}</span>{% endif %}
+      {% if station.wmo_id %}&middot; WMO {{ station.wmo_id }}{% endif %}
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-primary btn-sm" href="{% url 'analysis:ghcn_explore' station.id %}">Explore data</a>
+    <a class="btn btn-link btn-sm" href="{% url 'analysis:ghcn_browse' %}">&larr; Back to browser</a>
+  </div>
+</div>
+
+<div class="row g-4 mt-1">
+  <div class="col-lg-8">
+    {# ---- Existing datasets derived from this station ---- #}
+    {% if existing_datasets %}
+    <h2 class="h6 text-uppercase text-muted">Datasets already imported from this station</h2>
+    <table class="table table-sm bg-white">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Element</th>
+          <th>Thresholds</th>
+          <th>Range</th>
+          <th class="text-end">Rows</th>
+          <th class="text-end">Runs</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ds in existing_datasets %}
+        <tr class="existing-row">
+          <td>
+            <a href="{{ ds.get_absolute_url }}">{{ ds.name }}</a>
+            <div class="text-muted small">{{ ds.created_at|date:"Y-m-d H:i" }}</div>
+          </td>
+          <td>
+            {% if ds.source_metadata.element %}
+              <span class="id-mono">{{ ds.source_metadata.element }}</span>
+              <div class="text-muted small">{{ ds.source_metadata.operator }} ({{ ds.source_metadata.display_unit }})</div>
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% for t in ds.source_metadata.thresholds_display %}
+              <span class="threshold-pill">{{ t }}{{ ds.source_metadata.display_unit }}</span>
+            {% endfor %}
+          </td>
+          <td class="text-muted small">
+            {% if ds.source_metadata.actual_start %}{{ ds.source_metadata.actual_start }}<br>{{ ds.source_metadata.actual_end }}{% else %}—{% endif %}
+          </td>
+          <td class="text-end">{{ ds.row_count|default:"—" }}</td>
+          <td class="text-end">{{ ds.run_count }}</td>
+          <td>
+            <a class="btn btn-sm btn-outline-primary" href="{% url 'analysis:run_create' ds.pk %}">Analyze</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="alert alert-light border">
+      <strong>No datasets from this station yet.</strong>
+      Configure your first import below — the raw NOAA file is fetched once and cached locally,
+      so subsequent imports for different elements or thresholds reuse it without re-downloading.
+    </div>
+    {% endif %}
+
+    <div class="section-rule"></div>
+
+    {# ---- Configure form for another import ---- #}
+    <h2 class="h6 text-uppercase text-muted">
+      {% if existing_datasets %}Configure another import{% else %}Configure import{% endif %}
+    </h2>
+    <form method="post" class="card p-3" novalidate>
+      {% csrf_token %}
+      {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+
+      {% for f in form %}
+      <div class="mb-3">
+        <label class="form-label" for="{{ f.id_for_label }}">{{ f.label }}</label>
+        {{ f }}
+        {% if f.help_text %}<div class="form-help small text-muted">{{ f.help_text }}</div>{% endif %}
+        {% if f.errors %}<div class="text-danger small mt-1">{{ f.errors|join:", " }}</div>{% endif %}
+      </div>
+      {% endfor %}
+
+      <div class="d-flex justify-content-between">
+        <a href="{% url 'analysis:ghcn_browse' %}" class="btn btn-link">Pick a different station</a>
+        <button class="btn btn-primary" type="submit">Fetch &amp; create dataset</button>
+      </div>
+    </form>
+
+    <div class="alert alert-info small mt-3">
+      <strong>What happens on submit.</strong>
+      Download <code>by_station/{{ station.id }}.csv.gz</code> from NOAA into the local cache (or skip if cached &lt; 7 days old),
+      filter to the chosen element + year range, drop quality-failed rows, build a daily indicator-column CSV,
+      and create a Dataset you can analyze. Subsequent imports for this station re-use the cached file unless you check "Re-download".
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <h2 class="h6 text-uppercase text-muted">Elements available at this station</h2>
+    {% for ea in elements %}
+      <div class="element-card">
+        <div class="label">
+          <span class="id-mono">{{ ea.element }}</span>
+          {% for code, s in specs.items %}{% if code == ea.element %} – {{ s.label }}{% endif %}{% endfor %}
+        </div>
+        <div class="meta">
+          {{ ea.first_year }}–{{ ea.last_year }}
+          {% for code, s in specs.items %}{% if code == ea.element %} &middot; raw: {{ s.raw_unit }} &middot; display: {{ s.display_unit }}{% endif %}{% endfor %}
+        </div>
+      </div>
+    {% empty %}
+      <p class="text-muted">No element availability records for this station.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  document.querySelectorAll('form input, form textarea, form select').forEach(el => {
+    if (el.type === 'checkbox') el.classList.add('form-check-input');
+    else if (el.tagName === 'SELECT') el.classList.add('form-select');
+    else el.classList.add('form-control');
+  });
+</script>
+{% endblock %}

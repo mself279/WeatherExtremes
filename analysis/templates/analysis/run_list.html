@@ -1,0 +1,83 @@
+{% extends "analysis/base.html" %}
+{% block title %}Runs – WeatherExtremes{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-end justify-content-between mb-3">
+  <h1 class="h3 mb-0">Analysis runs</h1>
+  <a href="{% url 'analysis:run_compare' %}" class="btn btn-outline-primary btn-sm">Compare runs</a>
+</div>
+
+<h2 class="h6 text-uppercase text-muted mb-2">Occurrence-rate runs (KDE)</h2>
+<table class="table table-hover bg-white table-runs">
+  <thead>
+    <tr>
+      <th>Label</th>
+      <th>Dataset</th>
+      <th>Indicator</th>
+      <th class="numeric">Bandwidth (yr)</th>
+      <th class="numeric">Events</th>
+      <th>Status</th>
+      <th>Created</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for run in runs %}
+    <tr>
+      <td><a href="{{ run.get_absolute_url }}">{{ run.display_label }}</a></td>
+      <td><a href="{{ run.dataset.get_absolute_url }}">{{ run.dataset.name }}</a></td>
+      <td>{{ run.parameters.indicator_column|default:"—" }}</td>
+      <td class="numeric">{{ run.parameters.bandwidth_years|default:"—" }}</td>
+      <td class="numeric">{{ run.summary.event_count|default:"—" }}</td>
+      <td><span class="badge bg-{% if run.status == 'success' %}success{% elif run.status == 'failed' %}danger{% else %}secondary{% endif %}">{{ run.get_status_display }}</span></td>
+      <td>{{ run.created_at|date:"Y-m-d H:i" }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="7" class="text-muted text-center py-4">No occurrence-rate runs yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if is_paginated %}
+<nav>
+  <ul class="pagination justify-content-center">
+    {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Prev</a></li>{% endif %}
+    <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+    {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a></li>{% endif %}
+  </ul>
+</nav>
+{% endif %}
+
+<h2 class="h6 text-uppercase text-muted mt-4 mb-2">GEV runs (annual extremes)</h2>
+<table class="table table-hover bg-white table-runs">
+  <thead>
+    <tr>
+      <th>Label</th>
+      <th>Dataset</th>
+      <th>Element</th>
+      <th class="numeric">μ</th>
+      <th class="numeric">σ</th>
+      <th class="numeric">ξ</th>
+      <th class="numeric">Log-lik</th>
+      <th>Status</th>
+      <th>Created</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for run in gev_runs %}
+    <tr>
+      <td><a href="{{ run.get_absolute_url }}">{{ run.display_label }}</a></td>
+      <td><a href="{{ run.dataset.get_absolute_url }}">{{ run.dataset.name }}</a></td>
+      <td>{{ run.parameters.element|default:"—" }}</td>
+      <td class="numeric">{{ run.summary.location|default_if_none:"—"|floatformat:2 }}</td>
+      <td class="numeric">{{ run.summary.scale|default_if_none:"—"|floatformat:2 }}</td>
+      <td class="numeric">{{ run.summary.shape|default_if_none:"—"|floatformat:3 }}</td>
+      <td class="numeric">{{ run.summary.log_likelihood|default_if_none:"—"|floatformat:1 }}</td>
+      <td><span class="badge bg-{% if run.status == 'success' %}success{% elif run.status == 'failed' %}danger{% else %}secondary{% endif %}">{{ run.get_status_display }}</span></td>
+      <td>{{ run.created_at|date:"Y-m-d H:i" }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="9" class="text-muted text-center py-4">No GEV runs yet — open a GHCN-derived dataset and click "Run GEV analysis".</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

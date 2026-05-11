@@ -1,0 +1,90 @@
+{% extends "analysis/base.html" %}
+{% block title %}{{ run.display_label }} – WeatherExtremes{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb small">
+    <li class="breadcrumb-item"><a href="{% url 'analysis:run_list' %}">Runs</a></li>
+    <li class="breadcrumb-item"><a href="{{ run.dataset.get_absolute_url }}">{{ run.dataset.name }}</a></li>
+    <li class="breadcrumb-item active">{{ run.display_label }}</li>
+  </ol>
+</nav>
+
+<div class="d-flex align-items-end justify-content-between mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ run.display_label }}</h1>
+    <div class="text-muted">
+      <span class="badge bg-{% if run.status == 'success' %}success{% elif run.status == 'failed' %}danger{% else %}secondary{% endif %}">{{ run.get_status_display }}</span>
+      &middot; created {{ run.created_at|date:"Y-m-d H:i" }}
+      {% if run.completed_at %}&middot; finished {{ run.completed_at|date:"Y-m-d H:i" }}{% endif %}
+    </div>
+  </div>
+  <a class="btn btn-outline-primary" href="{% url 'analysis:run_create' run.dataset.pk %}">Run again</a>
+</div>
+
+{% if run.error %}
+<div class="alert alert-danger">
+  <strong>Run failed.</strong>
+  <pre class="mb-0 small mt-2" style="white-space: pre-wrap;">{{ run.error }}</pre>
+</div>
+{% endif %}
+
+{% if run.summary %}
+<div class="card p-3 mb-3">
+  <div class="row text-center">
+    <div class="col-md">
+      <div class="text-muted small">Events analyzed</div>
+      <div class="h4 mb-0">{{ run.summary.event_count }}</div>
+    </div>
+    <div class="col-md">
+      <div class="text-muted small">Mean rate (events/yr)</div>
+      <div class="h4 mb-0">{{ run.summary.annual_mean_rate|floatformat:3 }}</div>
+    </div>
+    <div class="col-md">
+      <div class="text-muted small">Peak year</div>
+      <div class="h4 mb-0">{{ run.summary.peak_year|floatformat:2 }}</div>
+    </div>
+    <div class="col-md">
+      <div class="text-muted small">Peak rate</div>
+      <div class="h4 mb-0">{{ run.summary.peak_rate|floatformat:3 }}</div>
+    </div>
+    <div class="col-md">
+      <div class="text-muted small" title="MISE-minimizing candidate from the bandwidth-search range. A heuristic — read the score curve before trusting it.">MISE minimum (yr)</div>
+      <div class="h4 mb-0">{{ run.summary.chosen_bandwidth_years|floatformat:1 }}</div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if figures.occurrence_rate %}
+<div class="figure-card mb-3"><div id="fig-occurrence" style="height:420px;"></div></div>
+{% endif %}
+{% if figures.confidence_band %}
+<div class="figure-card mb-3"><div id="fig-confidence" style="height:420px;"></div></div>
+{% endif %}
+{% if figures.bandwidth_score %}
+<div class="figure-card mb-3"><div id="fig-bandwidth" style="height:380px;"></div></div>
+{% endif %}
+{% if figures.multi_threshold %}
+<div class="figure-card mb-3"><div id="fig-threshold" style="height:380px;"></div></div>
+{% endif %}
+
+<details class="card p-3">
+  <summary class="text-muted small">Parameters used</summary>
+  <pre class="mb-0 small mt-2">{{ run.parameters|pprint }}</pre>
+</details>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  function draw(id, fig) {
+    if (!fig || !document.getElementById(id)) return;
+    Plotly.newPlot(id, fig.data, fig.layout, {responsive: true, displaylogo: false});
+  }
+  {% if figures.occurrence_rate %}draw('fig-occurrence', {{ figures.occurrence_rate|safe }});{% endif %}
+  {% if figures.confidence_band %}draw('fig-confidence', {{ figures.confidence_band|safe }});{% endif %}
+  {% if figures.bandwidth_score %}draw('fig-bandwidth',  {{ figures.bandwidth_score|safe }});{% endif %}
+  {% if figures.multi_threshold %}draw('fig-threshold',  {{ figures.multi_threshold|safe }});{% endif %}
+</script>
+{% endblock %}

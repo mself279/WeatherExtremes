@@ -1,0 +1,66 @@
+{% extends "analysis/base.html" %}
+{% block title %}New run – {{ dataset.name }}{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb small">
+    <li class="breadcrumb-item"><a href="{% url 'analysis:dataset_list' %}">Datasets</a></li>
+    <li class="breadcrumb-item"><a href="{{ dataset.get_absolute_url }}">{{ dataset.name }}</a></li>
+    <li class="breadcrumb-item active">New analysis run</li>
+  </ol>
+</nav>
+
+<h1 class="h3 mb-1">Configure analysis</h1>
+<p class="text-muted mb-4">
+  Defaults are based on this dataset's range. Bootstrap iterations and bandwidth search may take a few seconds for large datasets.
+</p>
+
+<form method="post" class="card p-4" novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+
+  <div class="row g-3">
+    <div class="col-md-6">
+      <h2 class="h6 text-muted text-uppercase">Inputs</h2>
+      {% for f in form %}
+        {% if f.name in 'label,indicator_column,additional_indicators,observation_start,observation_end,observation_factor' %}
+        <div class="mb-3">
+          <label class="form-label" for="{{ f.id_for_label }}">{{ f.label }}</label>
+          {{ f }}
+          {% if f.help_text %}<div class="form-help">{{ f.help_text }}</div>{% endif %}
+          {% if f.errors %}<div class="text-danger small mt-1">{{ f.errors|join:", " }}</div>{% endif %}
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+    <div class="col-md-6">
+      <h2 class="h6 text-muted text-uppercase">Smoothing &amp; bootstrap</h2>
+      {% for f in form %}
+        {% if f.name in 'bandwidth_years,bias_correction,bootstrap_iterations,bandwidth_search_min,bandwidth_search_max,bandwidth_search_step,decluster_tau,rng_seed' %}
+        <div class="mb-3">
+          <label class="form-label" for="{{ f.id_for_label }}">{{ f.label }}</label>
+          {{ f }}
+          {% if f.help_text %}<div class="form-help">{{ f.help_text }}</div>{% endif %}
+          {% if f.errors %}<div class="text-danger small mt-1">{{ f.errors|join:", " }}</div>{% endif %}
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="d-flex justify-content-between mt-2">
+    <a href="{{ dataset.get_absolute_url }}" class="btn btn-link">Cancel</a>
+    <button class="btn btn-primary" type="submit">Run analysis</button>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  document.querySelectorAll('form input, form textarea, form select').forEach(el => {
+    if (el.type === 'checkbox') el.classList.add('form-check-input');
+    else if (el.tagName === 'SELECT') el.classList.add('form-select');
+    else el.classList.add('form-control');
+  });
+</script>
+{% endblock %}

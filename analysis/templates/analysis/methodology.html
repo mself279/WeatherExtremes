@@ -1,0 +1,478 @@
+{% extends "analysis/base.html" %}
+{% block title %}Methodology – WeatherExtremes{% endblock %}
+
+{% block extra_head %}
+<style>
+  .methodology { max-width: 880px; }
+  .methodology h2 { margin-top: 2.2rem; }
+  .methodology h3 { margin-top: 1.6rem; font-size: 1.1rem; color: #374151; }
+  .methodology p, .methodology li { line-height: 1.55; }
+  .methodology .formula {
+    display: block;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: #f3f4f6;
+    padding: 0.6rem 0.9rem;
+    border-radius: 0.4rem;
+    margin: 0.6rem 0 1rem;
+    overflow-x: auto;
+  }
+  .methodology .toc { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0.5rem;
+                      padding: 0.9rem 1.2rem; margin-bottom: 1.5rem; }
+  .methodology .toc ol { margin-bottom: 0; }
+  .methodology dt { font-weight: 600; margin-top: 0.6rem; }
+  .methodology dd { margin-left: 0; color: #374151; }
+  .methodology table.params { width: 100%; }
+  .methodology table.params th { background: #f3f4f6; }
+  .methodology table.params td code { white-space: nowrap; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="methodology">
+  <h1 class="h3 mb-2">Methodology</h1>
+  <p class="text-muted">
+    WeatherExtremes estimates how the occurrence rate of an extreme-event indicator
+    (for example, days with precipitation over 3 inches) varies over time. This page
+    explains the math behind the estimator, the parameters you choose on the run
+    page, and what each chart and number on the result page represents.
+  </p>
+
+  <div class="toc">
+    <strong class="d-block mb-2">Contents</strong>
+    <ol class="mb-0">
+      <li><a href="#input">Input format</a></li>
+      <li><a href="#kde">Smoothed occurrence rate (KDE)</a></li>
+      <li><a href="#bias">Boundary bias correction</a></li>
+      <li><a href="#bandwidth">Bandwidth selection</a></li>
+      <li><a href="#bootstrap">Bootstrap confidence band</a></li>
+      <li><a href="#decluster">Autocorrelation declustering</a></li>
+      <li><a href="#multi">Multi-threshold comparison</a></li>
+      <li><a href="#parameters">Parameters reference</a></li>
+      <li><a href="#outputs">Outputs reference</a></li>
+      <li><a href="#ghcn">GHCN data ingestion</a></li>
+      <li><a href="#explore">Pre-analysis exploration</a></li>
+      <li><a href="#gev">GEV analysis (annual extremes)</a></li>
+      <li><a href="#references">References</a></li>
+    </ol>
+  </div>
+
+  <h2 id="input">1. Input format</h2>
+  <p>
+    The analysis takes a CSV with one row per time step on a regular grid. The
+    <code>Event_Date</code> column holds fractional years
+    (<code>1938.2466</code> ≈ early April 1938), and one or more 0/1 indicator
+    columns mark whether the extreme event occurred at that step.
+  </p>
+  <p>
+    For the bundled STL Precipitation example, the grid is daily (≈ 1/365 yr per
+    step), and columns <code>Over3</code>, <code>Over4</code>, <code>Over5</code>,
+    <code>Over6</code> flag days where precipitation exceeded the corresponding
+    threshold in inches. You select which indicator column to analyze when you
+    create a run.
+  </p>
+
+  <h2 id="kde">2. Smoothed occurrence rate (Gaussian KDE)</h2>
+  <p>
+    Treat the dates of the <em>N</em> events as a sample <code>T₁, T₂, …, T_N</code>
+    drawn from an unknown rate function <code>λ(t)</code> (events per year).
+    The Gaussian-kernel estimator at any time <code>t</code> is:
+  </p>
+  <code class="formula">
+    λ̂(t) = (1 / h) · Σᵢ K( (t − Tᵢ) / h ),  &nbsp; K(u) = (1/√(2π)) · exp(−u² / 2)
+  </code>
+  <p>
+    The bandwidth <code>h</code> (in years) controls how far each event's influence
+    spreads. Small <code>h</code> gives a wiggly curve that tracks individual events
+    closely; large <code>h</code> gives a smooth long-term trend at the cost of
+    obscuring short-term changes. There is no "right" bandwidth — picking one is
+    a bias–variance tradeoff, addressed in section 4 below.
+  </p>
+  <p>
+    The implementation is fully vectorized over numpy: a single broadcast forms
+    the (grid × events) difference matrix, applies the kernel, and sums along
+    the event axis. This is roughly two orders of magnitude faster than a Python
+    loop on the STL dataset.
+  </p>
+
+  <h2 id="bias">3. Boundary bias correction</h2>
+  <p>
+    Near the start and end of the observation window, a non-trivial fraction of
+    the kernel's mass falls outside the data and the estimator <em>under-counts</em>
+    events. The standard remedy is the <strong>reflection method</strong>: copy
+    the data within <code>3h</code> of each boundary, mirror it across the
+    boundary, and include those reflected dates when computing
+    <code>λ̂(t)</code>. The reflected points are dropped before plotting, so only
+    the original window is shown.
+  </p>
+  <p>
+    Toggle <em>Bias correction</em> off to see the uncorrected estimator dip near
+    the edges of the window.
+  </p>
+
+  <h2 id="bandwidth">4. Bandwidth selection</h2>
+  <p>
+    For a candidate bandwidth <code>h</code>, the cross-validation score is:
+  </p>
+  <code class="formula">
+    M(h) = ∫ λ̂(t)² dt  −  2 · Σᵢ λ̂₋ᵢ(Tᵢ)
+  </code>
+  <p>
+    where <code>λ̂₋ᵢ</code> is the leave-one-out estimator (the contribution of
+    <code>Tᵢ</code> is dropped when evaluating the rate at <code>t = Tᵢ</code>).
+    The first term penalizes wiggly estimators; the second rewards estimators
+    that put high density at the actual events. Lower <code>M(h)</code> is better.
+  </p>
+  <p>
+    The app searches across a user-specified range
+    (<code>[bandwidth_search_min, bandwidth_search_max]</code>) at the chosen step
+    size, computes <code>M(h)</code> for each, and reports the minimizer along
+    with the full curve. Use this curve to sanity-check your <code>h</code> choice
+    rather than blindly accepting the minimum — the score can be flat or have
+    multiple shallow minima with real datasets.
+  </p>
+
+  <h2 id="bootstrap">5. Bootstrap confidence band</h2>
+  <p>
+    To quantify uncertainty in <code>λ̂(t)</code>, the app uses a simple
+    nonparametric bootstrap on the event list:
+  </p>
+  <p>
+    For <code>B</code> iterations (default 100), draw <code>N</code> events with
+    replacement from the original <code>T₁, …, T_N</code>; compute the rate
+    estimate on this bootstrap sample; store the resulting curve. After
+    <code>B</code> iterations, take per-grid-point percentiles (5th, 10th, 25th,
+    50th, 75th, 90th, 95th) to form pointwise confidence bands.
+  </p>
+  <p>
+    Two notes. First, this is a <em>pointwise</em> band, not a simultaneous one —
+    the probability that the entire true rate curve lies within the band is
+    smaller than the nominal level. Second, increasing <code>B</code> reduces
+    Monte-Carlo error in the percentile estimates but doesn't shrink the band
+    itself; the band's width comes from the data, not the iteration count.
+  </p>
+
+  <h2 id="decluster">6. Autocorrelation declustering</h2>
+  <p>
+    Some extreme events arrive in clusters — a single weather system can produce
+    several over-threshold days in a row. Counting each one as an independent
+    event inflates the local rate. Declustering keeps only the first event of
+    each cluster.
+  </p>
+  <p>
+    The cluster length <code>τ</code> is estimated from the autocorrelation of
+    the indicator series: for each lag <em>l</em> from 1 to 14, the integer
+    <code>τ_l = max(0, ⌊−1 / log ρ_l⌋)</code> is computed (where
+    <code>ρ_l</code> is the lag-<em>l</em> correlation), and unique values are
+    used as candidate cluster lengths. Set <code>decluster_tau</code> to a
+    positive integer to enable; <code>0</code> disables it. For independent
+    events (e.g., billion-dollar disasters spaced months apart),
+    declustering is unnecessary.
+  </p>
+
+  <h2 id="multi">7. Multi-threshold comparison</h2>
+  <p>
+    On the run form, you can pick one primary indicator column plus any number
+    of additional ones. The pipeline computes the rate for each at the chosen
+    bandwidth and overlays them on a single chart, which is useful for
+    visualizing how rare-event frequency changes with the threshold —
+    e.g., 4-inch days versus 3-inch days against the same trend.
+  </p>
+
+  <h2 id="parameters">8. Parameters reference</h2>
+  <table class="table table-sm params bg-white">
+    <thead>
+      <tr><th>Parameter</th><th>Default</th><th>What it controls</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>indicator_column</code></td><td>—</td><td>Which 0/1 column in the dataset marks the events to analyze.</td></tr>
+      <tr><td><code>additional_indicators</code></td><td>(none)</td><td>Other indicator columns to overlay on the rate chart for comparison.</td></tr>
+      <tr><td><code>observation_start</code> / <code>observation_end</code></td><td>min / max year of the dataset</td><td>Window of years over which to estimate λ̂(t).</td></tr>
+      <tr><td><code>observation_factor</code></td><td><code>1/365</code></td><td>Spacing between time-grid points in years (1/365 = daily, 1.0 = annual).</td></tr>
+      <tr><td><code>bandwidth_years</code></td><td><code>20</code></td><td>Smoothing bandwidth h in years; controls smoothness vs detail.</td></tr>
+      <tr><td><code>bias_correction</code></td><td>on</td><td>Reflect 3h of data outside the window to reduce edge bias.</td></tr>
+      <tr><td><code>bootstrap_iterations</code></td><td><code>100</code></td><td>Number of bootstrap resamples for the confidence band.</td></tr>
+      <tr><td><code>bandwidth_search_min</code> / <code>max</code> / <code>step</code></td><td><code>1 / 31 / 1</code> yr</td><td>Range and step size for the cross-validation search.</td></tr>
+      <tr><td><code>decluster_tau</code></td><td><code>0</code></td><td>Cluster length τ in observation steps; <code>0</code> disables declustering.</td></tr>
+      <tr><td><code>rng_seed</code></td><td><code>12345</code></td><td>Optional seed for reproducible bootstrap results. Leave blank for nondeterministic.</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="outputs">9. Outputs reference</h2>
+
+  <h3>Summary metrics</h3>
+  <dl>
+    <dt>Events analyzed</dt>
+    <dd>Number of unique event dates in the chosen indicator column within the observation window (after declustering, if enabled).</dd>
+    <dt>Mean rate (events/yr)</dt>
+    <dd>Time average of <code>λ̂(t)</code> across the window. A coarse summary — with non-stationary data, the rate at any single year can differ substantially.</dd>
+    <dt>Peak year and peak rate</dt>
+    <dd>The year (and value) at which <code>λ̂(t)</code> is maximized.</dd>
+    <dt>Suggested bandwidth (yr)</dt>
+    <dd>Bandwidth that minimizes the cross-validation score in section 4. This is a recommendation, not a constraint — your <code>bandwidth_years</code> choice is what's actually used to draw the rate curve.</dd>
+  </dl>
+
+  <h3>Charts</h3>
+  <dl>
+    <dt>Occurrence rate by bandwidth</dt>
+    <dd>Smoothed rate curves at several bandwidths (your chosen <code>bandwidth_years</code> plus 10/15/20/25-yr references), with the events themselves shown as red marks on the x-axis. Shows how sensitive the estimate is to bandwidth choice.</dd>
+    <dt>Bootstrap confidence band</dt>
+    <dd>The point estimate at <code>bandwidth_years</code>, plus 80% and 90% bootstrap percentile bands. The band widens where the data are sparser (rarer events) and narrows where the rate is well-determined.</dd>
+    <dt>Bandwidth selection (MISE)</dt>
+    <dd>Cross-validation score across the search range. The red ✕ marks the minimum.</dd>
+    <dt>Occurrence rate by threshold</dt>
+    <dd>(Only when additional indicators are selected.) The same time window analyzed at multiple thresholds, all using <code>bandwidth_years</code>. Useful for comparing how the rate of more-extreme vs less-extreme events trends together.</dd>
+  </dl>
+
+  <h2 id="ghcn">10. GHCN data ingestion</h2>
+  <p>
+    Datasets can be created either by uploading a pre-built indicator-column
+    CSV or by importing directly from NOAA's
+    <em>Global Historical Climatology Network — Daily</em> (GHCNd) archive at
+    <code>ncei.noaa.gov/pub/data/ghcn/daily/</code>. The catalog tables
+    (<code>ghcnd-states.txt</code>, <code>ghcnd-stations.txt</code>,
+    <code>ghcnd-inventory.txt</code>) are downloaded once into the local cache
+    by <code>python manage.py sync_ghcn</code> and parsed into the
+    <code>GhcnState</code>, <code>GhcnStation</code>, and
+    <code>GhcnElementAvailability</code> tables. Coverage is restricted to
+    U.S. stations (ID prefix <code>US</code>).
+  </p>
+  <p>
+    Each 11-character station ID encodes structure: characters 1–2 are the
+    FIPS country code (<code>US</code>, <code>CA</code>, …); character 3 is
+    the network code (<code>W</code> = WBAN airport, <code>C</code> = US
+    Cooperative, <code>1</code> = CoCoRaHS, <code>S</code> = SNOTEL, …); the
+    remainder is the network-local ID. So <code>USW00013994</code> is the
+    WBAN station 00013994 — St. Louis Lambert International Airport.
+  </p>
+  <p>
+    When you import a station, the per-station daily file
+    (<code>by_station/&lt;ID&gt;.csv.gz</code>) is fetched once into
+    <code>media/ghcn_cache/</code> and reused on subsequent imports for up to
+    seven days. The transform converts raw GHCN values to display units
+    (PRCP: tenths of mm → inches; TMAX/TMIN: tenths of °C → °F;
+    AWND/WSF2/WSF5: tenths of m/s → mph), drops rows with non-blank
+    quality flags by default, builds a complete daily grid, and applies a
+    user-chosen comparison operator to each candidate threshold to produce
+    0/1 indicator columns named <code>Over3</code>, <code>Over90</code>,
+    <code>Under0</code>, <code>Over70</code>, etc. The threshold comparison
+    is performed in raw units (e.g. 3 inches → 762 tenths of mm) to avoid
+    float-precision issues at the cutoff.
+  </p>
+  <p>
+    Imported datasets keep a foreign-key link to the
+    <code>GhcnStation</code> they came from plus a JSON metadata blob
+    capturing element, operator, thresholds (in both display and raw
+    units), date range, observation counts, and quality-filter settings.
+    This provenance is what enables the GEV analysis path described below
+    (which needs the raw daily values, not just the indicator columns).
+  </p>
+
+  <h2 id="explore">11. Pre-analysis exploration</h2>
+  <p>
+    The exploration page at
+    <code>/datasets/from-ghcn/&lt;station_id&gt;/explore/</code> is meant to
+    inform threshold and date-range choices <em>before</em> committing to an
+    analysis run. It generates four diagnostics for any element the station
+    records, all from the same cached daily file:
+  </p>
+  <p>
+    <strong>Data completeness</strong> — per-year observation count compared
+    to the expected count (365 or 366), color-coded green / amber / red.
+    Reveals gaps and instrument-changeover artifacts that would otherwise
+    confound trend estimates.
+  </p>
+  <p>
+    <strong>Value distribution</strong> — log-scale histogram with vertical
+    lines marking each candidate threshold and the count of events at or
+    beyond each. Helps choose thresholds that produce enough events to be
+    analyzable (rule of thumb: ≥10 across the record) without being trivial
+    (sub-thousand events make smoothing speculative).
+  </p>
+  <p>
+    <strong>Annual extremes</strong> — the maximum (or minimum, for elements
+    whose default operator is <code>&lt;</code>) per year, with a linear
+    trend line. This is also the primary input for the GEV analysis
+    described below.
+  </p>
+  <p>
+    <strong>Threshold-crossing frequency</strong> — annual count of days
+    that crossed each threshold, stacked by threshold. The poor-man's
+    preview of what the eventual KDE rate curve will show, in raw counts.
+  </p>
+  <p>
+    A "Use these thresholds in Configure" button forwards the chosen
+    element + operator + threshold list to the import form so exploration
+    flows directly into a configured dataset.
+  </p>
+
+  <h2 id="gev">12. GEV analysis (annual extremes)</h2>
+  <p>
+    The kernel-rate analysis (sections 1–7) treats the data as a sequence of
+    discrete event-vs-non-event indicators and asks how the rate of those
+    events changes with time. A complementary question is the
+    <em>magnitude</em> of the worst event each year, and how often a level
+    of a given magnitude occurs. The Generalized Extreme Value (GEV)
+    framework answers that.
+  </p>
+  <p>
+    For an i.i.d. sequence with finite second moments, the
+    Fisher–Tippett–Gnedenko theorem says the suitably normalized maximum
+    converges in distribution to one of three families — Gumbel, Fréchet,
+    or Weibull — that combine into the three-parameter GEV family with
+    location <code>μ</code>, scale <code>σ &gt; 0</code>, and shape
+    <code>ξ</code>:
+  </p>
+  <code class="formula">
+    F(x; μ, σ, ξ) = exp{ −(1 + ξ(x−μ)/σ)^(−1/ξ) }   (ξ ≠ 0)<br>
+    F(x; μ, σ, 0) = exp{ −exp(−(x−μ)/σ) }            (Gumbel limit)
+  </code>
+  <p>
+    The shape parameter governs the tail behavior. <code>ξ &gt; 0</code> is
+    the Fréchet regime (heavy tail; no finite upper bound) — typical of
+    precipitation. <code>ξ &lt; 0</code> is the Weibull regime (bounded
+    above at <code>μ − σ/ξ</code>) — typical of temperature and wind, which
+    have physical limits. <code>ξ ≈ 0</code> is the Gumbel limit
+    (exponential tail).
+  </p>
+
+  <h3>Annual block maxima</h3>
+  <p>
+    For each year of record we reduce the daily series of the chosen
+    element to a single value: the maximum (default for PRCP, TMAX, wind)
+    or the minimum (default for TMIN). Years with fewer than
+    <code>min_obs_per_year</code> observations are dropped (an incomplete
+    year's "max" understates the true annual extreme). For minimum-direction
+    analyses, the GEV is fit to <code>−X</code> internally and the location
+    is negated for reporting; scale and shape carry their fitted meaning.
+  </p>
+
+  <h3>Maximum-likelihood estimation</h3>
+  <p>
+    The fit minimizes the negative log-likelihood
+  </p>
+  <code class="formula">
+    ℓ(μ, σ, ξ) = −n log σ − (1 + 1/ξ) Σᵢ log(1 + ξ y_i) − Σᵢ (1 + ξ y_i)^(−1/ξ)
+  </code>
+  <p>
+    (where <code>y_i = (M_i − μ)/σ</code> and the support constraint
+    <code>1 + ξ y_i &gt; 0</code> applies) over the reparametrized vector
+    <code>(μ, log σ, ξ)</code> using Nelder–Mead. The log-scale
+    parametrization keeps <code>σ</code> strictly positive without bounds.
+    Method-of-moments starting values (Gumbel approximation:
+    <code>σ₀ = std·√6/π</code>, <code>μ₀ = mean − γ·σ₀</code> with Euler's
+    γ ≈ 0.5772) are robust enough that the optimizer converges on
+    well-behaved climate data in a handful of iterations.
+  </p>
+
+  <h3>Diagnostics</h3>
+  <p>
+    <strong>Empirical vs fitted</strong> — annual maxima time series with
+    the fitted percentile lines (10th, 25th, 50th, 75th, 90th, 95th, 99th)
+    overlaid; histogram of the maxima with the fitted GEV PDF curve. Both
+    visualize whether the GEV is a credible model for the data.
+  </p>
+  <p>
+    <strong>Bucket diagnostic</strong> — bin the annual maxima into equal
+    fixed-width buckets and compare the observed counts with the GEV-implied
+    expected counts (<code>n · ∫_bin pdf</code>). The default bucket width is
+    element-aware (2°F for temperature, 0.5″ for precipitation, 5 mph for
+    wind) so as not to expose the data's underlying storage discreteness as
+    spurious peaks. We compute both a "full range" diagnostic (covering all
+    observed maxima) and an "upper-tail" diagnostic restricted to the top
+    25% of the data, which is the part of the distribution most relevant
+    for return-level estimation.
+  </p>
+  <p>
+    <strong>Return levels</strong> — the <em>T-year return level</em> is the
+    value <code>x_T</code> such that the annual maximum exceeds it on
+    average once every <code>T</code> years:
+    <code>F(x_T) = 1 − 1/T</code>. By inverting the GEV CDF we read off
+    <code>x_T</code> for <code>T ∈ {2, 5, 10, 25, 50, 100, 200, 500, 1000}</code>.
+    The return-level plot puts <code>T</code> on a log axis and overlays the
+    parametric-bootstrap confidence band.
+  </p>
+  <p>
+    <strong>Reference exceedance</strong> — given a reference value
+    <code>x_ref</code> and year (defaulting to the most recent year's
+    observed maximum), report <code>P(X &gt; x_ref) = 1 − F(x_ref)</code>
+    and the corresponding expected return period <code>1/(1 − F(x_ref))</code>.
+    This is the workbook's "probability of observing a value greater than
+    the 2022 maximum" question generalized.
+  </p>
+
+  <h3>Confidence intervals: parametric vs nonparametric bootstrap</h3>
+  <p>
+    Two methods, both running by default at 500 iterations.
+  </p>
+  <p>
+    The <strong>parametric bootstrap</strong> (Coles 2001, §2.6.5) generates
+    synthetic datasets by drawing 88-year (= n) samples from the fitted
+    GEV(μ̂, σ̂, ξ̂) and refits each. The spread of the refits is the
+    sampling uncertainty <em>under the assumption that the GEV is the
+    correct model</em>. Strengths: smooth, mathematically clean, scales
+    well to small samples. Weaknesses: silently underestimates uncertainty
+    if the GEV is the wrong distribution.
+  </p>
+  <p>
+    The <strong>nonparametric bootstrap</strong> (James et al. 2021, §5.2)
+    resamples the observed annual maxima with replacement (some years
+    duplicated, some skipped), refits each. Strengths: makes no
+    distributional assumption; absorbs both sampling and
+    model-misspecification uncertainty. Weaknesses: tail estimates can be
+    jumpy because rare years like 1954's 115°F may be missed in some
+    resamples.
+  </p>
+  <p>
+    When both methods agree closely, you can quote either. If parametric is
+    much tighter than nonparametric, that gap is the cost of assuming the
+    GEV model. The reverse pattern (nonparametric tighter) shouldn't
+    happen and would be worth investigating. The result page reports both
+    side by side with mean, standard deviation, and 2.5th–97.5th percentile
+    interval per parameter, plus per-method bootstrap parameter histograms.
+  </p>
+
+  <h3>Why use this alongside the kernel-rate analysis</h3>
+  <p>
+    The two pipelines answer different questions on the same data. The
+    kernel rate is non-stationary and answers <em>"how often did this kind
+    of event happen, and is that frequency changing?"</em>. The GEV is
+    stationary (assumes the distribution of annual maxima is constant
+    across the record) and answers <em>"how big is a 100-year event, and
+    how does the observed extreme compare to it?"</em>. Used together they
+    triangulate non-stationarity assessments — large gaps between the
+    GEV-implied return level and the kernel-rate trend, or systematic
+    bucket-diagnostic misfit, suggest the underlying distribution is
+    drifting and a non-stationary GEV (with time-varying μ or σ) would be
+    the natural next step.
+  </p>
+
+  <h2 id="references">13. References</h2>
+  <p>
+    Mudelsee, M. (2014). <em>Climate Time Series Analysis: Classical Statistical
+    and Bootstrap Methods</em> (2nd ed.). Springer. Chapters 6 (occurrence-rate
+    estimation, bandwidth selection, bias correction) and 7 (bootstrap methods).
+  </p>
+  <p>
+    Coles, S. (2001). <em>An Introduction to Statistical Modeling of Extreme
+    Values</em>. Springer. Chapters 3 (block maxima and the GEV family) and §2.6.5
+    (parametric bootstrap for extreme-value parameters).
+  </p>
+  <p>
+    James, G., Witten, D., Hastie, T., &amp; Tibshirani, R. (2021). <em>An
+    Introduction to Statistical Learning</em> (2nd ed.). §5.2 covers the
+    nonparametric bootstrap algorithm used for both the kernel-rate
+    confidence bands and the GEV parameter intervals.
+  </p>
+  <p>
+    Silverman, B. W. (1986). <em>Density Estimation for Statistics and Data
+    Analysis</em>. Chapman &amp; Hall. The classical reference for kernel density
+    estimation.
+  </p>
+  <p>
+    Menne, M. J., Durre, I., Vose, R. S., Gleason, B. E., &amp; Houston, T. G.
+    (2012). An overview of the Global Historical Climatology Network–Daily
+    Database. <em>Journal of Atmospheric and Oceanic Technology</em>, 29(7),
+    897–910. The reference paper for the GHCN-Daily archive.
+  </p>
+</div>
+{% endblock %}

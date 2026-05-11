@@ -1,0 +1,149 @@
+{% extends "analysis/base.html" %}
+{% block title %}{{ run.display_label }} – WeatherExtremes{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb small">
+    <li class="breadcrumb-item"><a href="{% url 'analysis:dataset_list' %}">Datasets</a></li>
+    <li class="breadcrumb-item"><a href="{{ run.dataset.get_absolute_url }}">{{ run.dataset.name }}</a></li>
+    <li class="breadcrumb-item active">GEV: {{ run.display_label }}</li>
+  </ol>
+</nav>
+
+<div class="d-flex align-items-end justify-content-between mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ run.display_label }}</h1>
+    <div class="text-muted">
+      <span class="badge bg-{% if run.status == 'success' %}success{% elif run.status == 'failed' %}danger{% else %}secondary{% endif %}">{{ run.get_status_display }}</span>
+      &middot; created {{ run.created_at|date:"Y-m-d H:i" }}
+      {% if run.completed_at %}&middot; finished {{ run.completed_at|date:"Y-m-d H:i" }}{% endif %}
+    </div>
+  </div>
+  <a class="btn btn-outline-primary" href="{% url 'analysis:gev_create' run.dataset.pk %}">Run again</a>
+</div>
+
+{% if run.error %}
+<div class="alert alert-danger">
+  <strong>Run failed.</strong>
+  <pre class="mb-0 small mt-2" style="white-space: pre-wrap;">{{ run.error }}</pre>
+</div>
+{% endif %}
+
+{% if run.summary %}
+<div class="card p-3 mb-3">
+  <div class="row text-center g-3">
+    <div class="col-md">
+      <div class="text-muted small">Years</div>
+      <div class="h4 mb-0">{{ run.summary.n_years }}</div>
+      <div class="small text-muted">{{ run.summary.year_range.0 }}–{{ run.summary.year_range.1 }}</div>
+    </div>
+    <div class="col-md">
+      <div class="text-muted small">Location (μ)</div>
+      <div class="h4 mb-0">{{ run.summary.location|floatformat:3 }}</div>
+      <div class="small text-muted">{{ run.summary.display_unit }}</div>
+    </div>
+    <div class="col-md">
+      <div class="text-muted small">Scale (σ)</div>
+      <div class="h4 mb-0">{{ run.summary.scale|floatformat:3 }}</div>
+      <div class="small text-muted">{{ run.summary.display_unit }}</div>
+    </div>
+    <div class="col-md">
+      <div class="text-muted small">Shape (ξ)</div>
+      <div class="h4 mb-0">{{ run.summary.shape|floatformat:4 }}</div>
+      <div class="small text-muted">
+        {% if run.summary.shape > 0.001 %}Fréchet (heavy tail){% elif run.summary.shape < -0.001 %}Weibull (bounded){% else %}≈ Gumbel{% endif %}
+      </div>
+    </div>
+    <div class="col-md">
+      <div class="text-muted small">Log-likelihood</div>
+      <div class="h4 mb-0">{{ run.summary.log_likelihood|floatformat:2 }}</div>
+      <div class="small text-muted">{% if run.summary.converged %}converged{% else %}not converged{% endif %}</div>
+    </div>
+  </div>
+</div>
+
+<div class="card p-3 mb-3">
+  <h2 class="h6 text-uppercase text-muted mb-2">Reference exceedance</h2>
+  <div>
+    P(annual {% if run.parameters.direction == 'min' %}min{% else %}max{% endif %} ≥
+    <strong>{{ run.summary.exceedance_reference_value|floatformat:2 }} {{ run.summary.display_unit }}</strong>
+    in any given year) = <strong>{{ run.summary.exceedance_probability|floatformat:4 }}</strong>
+    &middot; expected return period ≈ <strong>{{ run.summary.expected_return_period_years|floatformat:1 }} years</strong>
+    <span class="text-muted small">(reference: {{ run.summary.exceedance_reference_year }} observed maximum)</span>
+  </div>
+</div>
+{% endif %}
+
+{% if run.confidence_intervals %}
+<div class="card p-3 mb-3">
+  <h2 class="h6 text-uppercase text-muted mb-2">95% confidence intervals</h2>
+  <table class="table table-sm mb-0 bg-white">
+    <thead>
+      <tr>
+        <th>Method</th>
+        <th>Iterations</th>
+        <th>Successful refits</th>
+        <th>Location (μ)</th>
+        <th>Scale (σ)</th>
+        <th>Shape (ξ)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for method, ci in run.confidence_intervals.items %}
+      <tr>
+        <td><strong>{{ method|title }}</strong></td>
+        <td>{{ ci.n_iterations }}</td>
+        <td>{{ ci.n_successful }}</td>
+        {% for pname in 'location,scale,shape'|cut:' '|slice:':' %}{% endfor %}
+        <td>[{{ ci.parameters.location.ci_lower|floatformat:3 }}, {{ ci.parameters.location.ci_upper|floatformat:3 }}]<br><small class="text-muted">SD {{ ci.parameters.location.sd|floatformat:3 }}</small></td>
+        <td>[{{ ci.parameters.scale.ci_lower|floatformat:3 }}, {{ ci.parameters.scale.ci_upper|floatformat:3 }}]<br><small class="text-muted">SD {{ ci.parameters.scale.sd|floatformat:3 }}</small></td>
+        <td>[{{ ci.parameters.shape.ci_lower|floatformat:4 }}, {{ ci.parameters.shape.ci_upper|floatformat:4 }}]<br><small class="text-muted">SD {{ ci.parameters.shape.sd|floatformat:4 }}</small></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if run.summary.return_levels %}
+<div class="card p-3 mb-3">
+  <h2 class="h6 text-uppercase text-muted mb-2">Return levels</h2>
+  <table class="table table-sm mb-0 bg-white">
+    <thead><tr><th>Return period (years)</th><th>Return level ({{ run.summary.display_unit }})</th></tr></thead>
+    <tbody>
+      {% for T, x in run.summary.return_levels.items %}
+      <tr><td>{{ T }}</td><td>{{ x|floatformat:3 }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if figures.annual_maxima %}<div class="figure-card mb-3"><div id="fig-am" style="height:380px;"></div></div>{% endif %}
+{% if figures.histogram_pdf %}<div class="figure-card mb-3"><div id="fig-hist" style="height:380px;"></div></div>{% endif %}
+{% if figures.return_level %}<div class="figure-card mb-3"><div id="fig-rl" style="height:380px;"></div></div>{% endif %}
+{% if figures.bucket_full %}<div class="figure-card mb-3"><div id="fig-bkfull" style="height:340px;"></div></div>{% endif %}
+{% if figures.bucket_tail %}<div class="figure-card mb-3"><div id="fig-bktail" style="height:340px;"></div></div>{% endif %}
+{% if figures.bootstrap_distributions %}<div class="figure-card mb-3"><div id="fig-boot" style="height:340px;"></div></div>{% endif %}
+
+<details class="card p-3">
+  <summary class="text-muted small">Parameters used</summary>
+  <pre class="mb-0 small mt-2">{{ run.parameters|pprint }}</pre>
+</details>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  function draw(id, fig) {
+    if (!fig || !document.getElementById(id)) return;
+    Plotly.newPlot(id, fig.data, fig.layout, {responsive: true, displaylogo: false});
+  }
+  {% if figures.annual_maxima %}draw('fig-am',     {{ figures.annual_maxima|safe }});{% endif %}
+  {% if figures.histogram_pdf %}draw('fig-hist',   {{ figures.histogram_pdf|safe }});{% endif %}
+  {% if figures.return_level %}draw('fig-rl',      {{ figures.return_level|safe }});{% endif %}
+  {% if figures.bucket_full %}draw('fig-bkfull',   {{ figures.bucket_full|safe }});{% endif %}
+  {% if figures.bucket_tail %}draw('fig-bktail',   {{ figures.bucket_tail|safe }});{% endif %}
+  {% if figures.bootstrap_distributions %}draw('fig-boot', {{ figures.bootstrap_distributions|safe }});{% endif %}
+</script>
+{% endblock %}

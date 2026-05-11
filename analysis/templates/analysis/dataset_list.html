@@ -1,0 +1,47 @@
+{% extends "analysis/base.html" %}
+{% block title %}Datasets – WeatherExtremes{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-end justify-content-between mb-3">
+  <div>
+    <h1 class="h3 mb-1">Datasets</h1>
+    <p class="text-muted mb-0">CSV files of fractional-year event indicators.</p>
+  </div>
+  <div class="btn-group">
+    <a class="btn btn-outline-primary" href="{% url 'analysis:ghcn_browse' %}">Import from GHCN</a>
+    <a class="btn btn-primary" href="{% url 'analysis:dataset_upload' %}">Upload CSV</a>
+  </div>
+</div>
+
+{% if datasets %}
+<table class="table table-hover bg-white">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Indicators</th>
+      <th class="text-end">Rows</th>
+      <th class="text-end">Range</th>
+      <th>Uploaded</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for d in datasets %}
+    <tr>
+      <td><a href="{{ d.get_absolute_url }}">{{ d.name }}</a><br><small class="text-muted">{{ d.description|truncatechars:80 }}</small></td>
+      <td>{% for col in d.indicator_columns %}<span class="summary-pill">{{ col }}</span>{% endfor %}</td>
+      <td class="text-end">{{ d.row_count|default:"—" }}</td>
+      <td class="text-end">{% if d.min_year %}{{ d.min_year|floatformat:1 }} – {{ d.max_year|floatformat:1 }}{% else %}—{% endif %}</td>
+      <td>{{ d.created_at|date:"Y-m-d" }}</td>
+      <td><a class="btn btn-sm btn-outline-primary" href="{% url 'analysis:run_create' d.pk %}">Analyze</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="card p-4 text-center text-muted">
+  No datasets yet. <a href="{% url 'analysis:dataset_upload' %}">Upload one</a>
+  or run <code>python manage.py load_sample</code> to load the bundled STL Precipitation example.
+</div>
+{% endif %}
+{% endblock %}

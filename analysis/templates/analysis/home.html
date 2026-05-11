@@ -1,0 +1,73 @@
+{% extends "analysis/base.html" %}
+{% block title %}WeatherExtremes – Home{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+  <div class="col-lg-8">
+    <h1 class="h3 mb-2">Extreme-event occurrence rate analysis</h1>
+    <p class="text-muted mb-0">
+      Upload a CSV of fractional-year event indicators, configure a smoothing bandwidth,
+      and the app produces a Gaussian-kernel occurrence-rate estimate, a bandwidth
+      cross-validation curve, and a bootstrap confidence band — all interactively.
+    </p>
+  </div>
+  <div class="col-lg-4 text-lg-end mt-3 mt-lg-0">
+    <a href="{% url 'analysis:ghcn_browse' %}" class="btn btn-primary">Import from GHCN</a>
+    <a href="{% url 'analysis:dataset_upload' %}" class="btn btn-outline-secondary">Upload CSV</a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-4">
+    <div class="card p-3 h-100">
+      <div class="text-muted small">Datasets</div>
+      <div class="display-6">{{ dataset_count }}</div>
+      <a href="{% url 'analysis:dataset_list' %}" class="small">Manage datasets &rarr;</a>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card p-3 h-100">
+      <div class="text-muted small">Analysis runs</div>
+      <div class="display-6">{{ run_count }}</div>
+      <a href="{% url 'analysis:run_list' %}" class="small">All runs &rarr;</a>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card p-3 h-100">
+      <div class="text-muted small">Compare runs</div>
+      <div class="display-6">&plus;</div>
+      <a href="{% url 'analysis:run_compare' %}" class="small">Side-by-side &rarr;</a>
+    </div>
+  </div>
+</div>
+
+{% if recent_runs %}
+<div class="mt-4">
+  <h2 class="h5">Recent runs</h2>
+  <table class="table table-sm table-hover table-runs bg-white">
+    <thead>
+      <tr>
+        <th>Label</th>
+        <th>Dataset</th>
+        <th>Status</th>
+        <th class="numeric">Bandwidth (yr)</th>
+        <th class="numeric">Events</th>
+        <th>Created</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for run in recent_runs %}
+      <tr>
+        <td><a href="{{ run.get_absolute_url }}">{{ run.display_label }}</a></td>
+        <td>{{ run.dataset.name }}</td>
+        <td><span class="badge bg-{% if run.status == 'success' %}success{% elif run.status == 'failed' %}danger{% else %}secondary{% endif %}">{{ run.get_status_display }}</span></td>
+        <td class="numeric">{{ run.parameters.bandwidth_years|default:"—" }}</td>
+        <td class="numeric">{{ run.summary.event_count|default:"—" }}</td>
+        <td><span title="{{ run.created_at|date:'c' }}">{{ run.created_at|date:"Y-m-d H:i" }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

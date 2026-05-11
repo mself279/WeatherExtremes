@@ -1,0 +1,52 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}WeatherExtremes{% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" defer></script>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+  <style>
+    body { background: #f7f8fa; }
+    .navbar-brand { font-weight: 600; letter-spacing: 0.4px; }
+    .card { border: 1px solid #e5e7eb; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+    .figure-card { padding: 1rem 1rem 0.5rem; background: #fff; border-radius: 0.5rem; }
+    .summary-pill { display: inline-block; padding: 0.25rem 0.6rem; border-radius: 999px;
+                    background: #eef2ff; color: #3730a3; font-size: 0.85rem; margin-right: 0.4rem; }
+    .form-help { font-size: 0.85rem; color: #6b7280; }
+    .table-runs td.numeric { font-variant-numeric: tabular-nums; }
+  </style>
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+  <div class="container">
+    <a class="navbar-brand" href="{% url 'analysis:home' %}">WeatherExtremes</a>
+    <div class="collapse navbar-collapse">
+      <ul class="navbar-nav me-auto">
+        <li class="nav-item"><a class="nav-link" href="{% url 'analysis:dataset_list' %}">Datasets</a></li>
+        <li class="nav-item"><a class="nav-link" href="{% url 'analysis:run_list' %}">Runs</a></li>
+        <li class="nav-item"><a class="nav-link" href="{% url 'analysis:run_compare' %}">Compare runs</a></li>
+        <li class="nav-item"><a class="nav-link" href="{% url 'analysis:methodology' %}">Methodology</a></li>
+      </ul>
+      <a class="btn btn-outline-light btn-sm" href="{% url 'analysis:dataset_upload' %}">Upload dataset</a>
+    </div>
+  </div>
+</nav>
+
+<main class="container py-4">
+  {% if messages %}
+    {% for m in messages %}
+      <div class="alert alert-{{ m.tags|default:'info' }}">{{ m }}</div>
+    {% endfor %}
+  {% endif %}
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="container py-4 text-center text-muted small">
+  WeatherExtremes &middot; Non-stationary occurrence-rate analysis of extreme events.
+</footer>
+{% block extra_scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,182 @@
+{% extends "analysis/base.html" %}
+{% block title %}Browse GHCN stations – WeatherExtremes{% endblock %}
+
+{% block extra_head %}
+<style>
+  .ghcn-filters .form-label { font-weight: 600; font-size: 0.85rem; color: #4b5563; }
+  .ghcn-filters .form-help  { font-size: 0.8rem; color: #6b7280; }
+  .ghcn-filters .form-check { font-size: 0.9rem; }
+  .station-row td { vertical-align: top; }
+  .element-pill { display: inline-block; font-size: 0.72rem; padding: 0.1rem 0.4rem;
+                  border-radius: 999px; margin: 0.1rem 0.2rem 0.1rem 0;
+                  background: #eef2ff; color: #3730a3; white-space: nowrap; }
+  .element-pill .yrs { color: #6b7280; margin-left: 0.2rem; font-variant-numeric: tabular-nums; }
+  .id-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-end justify-content-between mb-3">
+  <div>
+    <h1 class="h3 mb-1">Browse GHCN stations</h1>
+    <p class="text-muted mb-0">
+      US stations only.
+      Catalog: <strong>{{ station_count|default:"—" }}</strong> stations.
+      {% if station_count == 0 %}
+      Run <code>python manage.py sync_ghcn</code> to populate the catalog.
+      {% endif %}
+    </p>
+  </div>
+  <a class="btn btn-link" href="{% url 'analysis:dataset_list' %}">All datasets</a>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-3">
+    <form method="get" class="card p-3 ghcn-filters">
+      <div class="mb-3">
+        <label class="form-label" for="filter-q">Search</label>
+        <input class="form-control form-control-sm" type="search" id="filter-q" name="q" value="{{ filters.q }}" placeholder="Name or ID">
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label" for="filter-state">State</label>
+        <select class="form-select form-select-sm" id="filter-state" name="state">
+          <option value="">All states</option>
+          {% for s in states %}
+            <option value="{{ s.code }}" {% if filters.state == s.code %}selected{% endif %}>
+              {{ s.code }} – {{ s.name|title }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">Required elements</label>
+        <div class="form-help mb-1">Stations must have ALL checked elements.</div>
+        {% for opt in element_options %}
+          {% with spec=element_specs|default_if_none:None %}
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="element"
+                   value="{{ opt.element }}" id="elem-{{ opt.element }}"
+                   {% if opt.element in filters.elements %}checked{% endif %}>
+            <label class="form-check-label" for="elem-{{ opt.element }}">
+              <span class="id-mono">{{ opt.element }}</span>
+              <span class="text-muted">({{ opt.n }})</span>
+            </label>
+          </div>
+          {% endwith %}
+        {% endfor %}
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label" for="filter-first">Started by</label>
+        <input class="form-control form-control-sm" type="number" min="1700" max="2100"
+               id="filter-first" name="first_by" value="{{ filters.first_by|default_if_none:'' }}"
+               placeholder="e.g. 1950">
+        <div class="form-help">First year of data ≤ this value.</div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label" for="filter-last">Active through</label>
+        <input class="form-control form-control-sm" type="number" min="1700" max="2100"
+               id="filter-last" name="last_after" value="{{ filters.last_after|default_if_none:'' }}"
+               placeholder="e.g. 2020">
+        <div class="form-help">Last year of data ≥ this value.</div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label" for="filter-net">Network</label>
+        <select class="form-select form-select-sm" id="filter-net" name="network_code">
+          <option value="">Any network</option>
+          {% for nc in network_options %}
+            {% if nc %}
+            <option value="{{ nc }}" {% if filters.network_code == nc %}selected{% endif %}>
+              {{ nc }}{% if nc == "W" %} (WBAN airports){% elif nc == "C" %} (Cooperative){% elif nc == "1" %} (CoCoRaHS){% elif nc == "S" %} (Snotel){% endif %}
+            </option>
+            {% endif %}
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="mb-3 form-check">
+        <input class="form-check-input" type="checkbox" name="hcn_only" value="1"
+               id="filter-hcn" {% if filters.hcn_only %}checked{% endif %}>
+        <label class="form-check-label" for="filter-hcn">HCN/CRN stations only</label>
+      </div>
+
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary btn-sm flex-grow-1">Apply</button>
+        <a href="{% url 'analysis:ghcn_browse' %}" class="btn btn-outline-secondary btn-sm">Reset</a>
+      </div>
+    </form>
+  </div>
+
+  <div class="col-lg-9">
+    <div class="card p-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <div class="text-muted small">
+          {% if paginator.count %}
+            {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ paginator.count|default:0 }} stations
+          {% else %}
+            No stations match the current filters.
+          {% endif %}
+        </div>
+      </div>
+
+      {% if stations %}
+      <table class="table table-sm table-hover bg-white">
+        <thead>
+          <tr>
+            <th>Name &amp; ID</th>
+            <th>State</th>
+            <th>Lat / Lon</th>
+            <th>Elev (m)</th>
+            <th>Available elements</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for st in stations %}
+          <tr class="station-row">
+            <td>
+              <div>{{ st.name|title }}</div>
+              <div class="id-mono small text-muted">{{ st.id }}</div>
+            </td>
+            <td>{{ st.state }}</td>
+            <td><span class="font-monospace small">{{ st.latitude|floatformat:3 }}, {{ st.longitude|floatformat:3 }}</span></td>
+            <td class="text-end">{% if st.elevation %}{{ st.elevation|floatformat:0 }}{% else %}—{% endif %}</td>
+            <td>
+              {% for ea in st.elements.all %}
+                <span class="element-pill" title="{% if ea.element in element_specs %}{{ element_specs|safe }}{% endif %}">
+                  {{ ea.element }}<span class="yrs">{{ ea.first_year }}–{{ ea.last_year }}</span>
+                </span>
+              {% endfor %}
+            </td>
+            <td><a class="btn btn-sm btn-outline-primary" href="{% url 'analysis:ghcn_configure' st.id %}">Configure</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+
+      {% if is_paginated %}
+      <nav class="mt-2">
+        <ul class="pagination pagination-sm justify-content-center mb-0">
+          {% if page_obj.has_previous %}
+          <li class="page-item">
+            <a class="page-link" href="?{% for k,v in request.GET.lists %}{% for vv in v %}{% if k != 'page' %}{{ k }}={{ vv }}&amp;{% endif %}{% endfor %}{% endfor %}page={{ page_obj.previous_page_number }}">Prev</a>
+          </li>
+          {% endif %}
+          <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ paginator.num_pages }}</span></li>
+          {% if page_obj.has_next %}
+          <li class="page-item">
+            <a class="page-link" href="?{% for k,v in request.GET.lists %}{% for vv in v %}{% if k != 'page' %}{{ k }}={{ vv }}&amp;{% endif %}{% endfor %}{% endfor %}page={{ page_obj.next_page_number }}">Next</a>
+          </li>
+          {% endif %}
+        </ul>
+      </nav>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
