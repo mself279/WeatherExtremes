@@ -61,8 +61,16 @@ class Command(BaseCommand):
                 "SNOW, SNWD)."
             ),
         )
+        parser.add_argument(
+            "--if-empty",
+            action="store_true",
+            help="Skip sync if the GhcnStation table already has rows (fast no-op on normal deploys).",
+        )
 
     def handle(self, *args, **options):
+        if options["if_empty"] and GhcnStation.objects.exists():
+            self.stdout.write("GHCN catalog already populated — skipping sync.")
+            return
         cache_dir = Path(options["cache_dir"]) if options["cache_dir"] else (
             Path(settings.MEDIA_ROOT) / "ghcn_cache"
         )
