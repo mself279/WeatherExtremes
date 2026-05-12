@@ -46,6 +46,9 @@ MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     # WhiteNoise must come right after SecurityMiddleware.
     "whitenoise.middleware.WhiteNoiseMiddleware",
+    # Site-wide basic auth (no-op when BASIC_AUTH_USER / BASIC_AUTH_PASSWORD
+    # are not set in the environment).
+    "config.middleware.BasicAuthMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -53,6 +56,14 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
+
+# ---------------------------------------------------------------------------
+# Basic auth (alpha gate) — site is locked behind one shared username +
+# password when both env vars are set. No effect locally if unset.
+# ---------------------------------------------------------------------------
+BASIC_AUTH_USER = os.environ.get("BASIC_AUTH_USER", "")
+BASIC_AUTH_PASSWORD = os.environ.get("BASIC_AUTH_PASSWORD", "")
+BASIC_AUTH_REALM = os.environ.get("BASIC_AUTH_REALM", "WeatherExtremes alpha")
 
 ROOT_URLCONF = "config.urls"
 
