@@ -28,8 +28,11 @@ _env_hosts = [h.strip() for h in os.environ.get("ALLOWED_HOSTS", "").split(",") 
 ALLOWED_HOSTS = _env_hosts or _default_hosts
 
 # CSRF: Django 4+ requires explicit trusted origins for HTTPS POSTs.
+# Use wildcard subdomains so any *.up.railway.app hostname is covered.
 CSRF_TRUSTED_ORIGINS = [
-    f"https://{h.lstrip('.')}" for h in ALLOWED_HOSTS if "." in h and h != "127.0.0.1"
+    f"https://*{h}" if h.startswith(".") else f"https://{h}"
+    for h in ALLOWED_HOSTS
+    if "." in h and h != "127.0.0.1"
 ]
 
 INSTALLED_APPS = [
