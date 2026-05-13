@@ -359,6 +359,18 @@ class AnalysisRunDetailView(DetailView):
         return ctx
 
 
+class AnalysisRunDeleteView(View):
+    """POST-only delete for a kernel-rate run. Returns to ?next= or the dataset."""
+
+    def post(self, request, pk):
+        run = get_object_or_404(AnalysisRun, pk=pk)
+        dataset_url = run.dataset.get_absolute_url()
+        label = run.display_label
+        run.delete()
+        messages.success(request, f"Deleted run '{label}'.")
+        return redirect(request.POST.get("next") or dataset_url)
+
+
 class RunComparisonView(FormView):
     template_name = "analysis/run_compare.html"
     form_class = RunComparisonForm
@@ -631,3 +643,15 @@ class GEVRunDetailView(DetailView):
         ctx = super().get_context_data(**kwargs)
         ctx["figures"] = self.object.figures or {}
         return ctx
+
+
+class GEVRunDeleteView(View):
+    """POST-only delete for a GEV run. Returns to ?next= or the dataset."""
+
+    def post(self, request, pk):
+        run = get_object_or_404(GEVRun, pk=pk)
+        dataset_url = run.dataset.get_absolute_url()
+        label = run.display_label
+        run.delete()
+        messages.success(request, f"Deleted GEV run '{label}'.")
+        return redirect(request.POST.get("next") or dataset_url)

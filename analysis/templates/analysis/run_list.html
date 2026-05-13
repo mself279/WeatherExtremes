@@ -18,6 +18,7 @@
       <th class="numeric">Events</th>
       <th>Status</th>
       <th>Created</th>
+      <th></th>
     </tr>
   </thead>
   <tbody>
@@ -30,9 +31,17 @@
       <td class="numeric">{{ run.summary.event_count|default:"—" }}</td>
       <td><span class="badge bg-{% if run.status == 'success' %}success{% elif run.status == 'failed' %}danger{% else %}secondary{% endif %}">{{ run.get_status_display }}</span></td>
       <td>{{ run.created_at|date:"Y-m-d H:i" }}</td>
+      <td>
+        <form method="post" action="{% url 'analysis:run_delete' run.pk %}" class="d-inline"
+              onsubmit="return confirm('Delete run \'{{ run.display_label|escapejs }}\'? This cannot be undone.');">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{% url 'analysis:run_list' %}">
+          <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete this run">&times;</button>
+        </form>
+      </td>
     </tr>
     {% empty %}
-    <tr><td colspan="7" class="text-muted text-center py-4">No occurrence-rate runs yet.</td></tr>
+    <tr><td colspan="8" class="text-muted text-center py-4">No occurrence-rate runs yet.</td></tr>
     {% endfor %}
   </tbody>
 </table>
@@ -60,6 +69,7 @@
       <th class="numeric">Log-lik</th>
       <th>Status</th>
       <th>Created</th>
+      <th></th>
     </tr>
   </thead>
   <tbody>
@@ -74,9 +84,17 @@
       <td class="numeric">{{ run.summary.log_likelihood|default_if_none:"—"|floatformat:1 }}</td>
       <td><span class="badge bg-{% if run.status == 'success' %}success{% elif run.status == 'failed' %}danger{% else %}secondary{% endif %}">{{ run.get_status_display }}</span></td>
       <td>{{ run.created_at|date:"Y-m-d H:i" }}</td>
+      <td>
+        <form method="post" action="{% url 'analysis:gev_delete' run.pk %}" class="d-inline"
+              onsubmit="return confirm('Delete GEV run \'{{ run.display_label|escapejs }}\'? This cannot be undone.');">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{% url 'analysis:run_list' %}">
+          <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete this GEV run">&times;</button>
+        </form>
+      </td>
     </tr>
     {% empty %}
-    <tr><td colspan="9" class="text-muted text-center py-4">No GEV runs yet — open a GHCN-derived dataset and click "Run GEV analysis".</td></tr>
+    <tr><td colspan="10" class="text-muted text-center py-4">No GEV runs yet — open a GHCN-derived dataset and click "Run GEV analysis".</td></tr>
     {% endfor %}
   </tbody>
 </table>

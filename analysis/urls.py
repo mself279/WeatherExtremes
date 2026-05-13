@@ -36,6 +36,11 @@ urlpatterns = [
     ),
     path("runs/", views.AnalysisRunListView.as_view(), name="run_list"),
     path("runs/<uuid:pk>/", views.AnalysisRunDetailView.as_view(), name="run_detail"),
+    path(
+        "runs/<uuid:pk>/delete/",
+        views.AnalysisRunDeleteView.as_view(),
+        name="run_delete",
+    ),
     path("runs/compare/", views.RunComparisonView.as_view(), name="run_compare"),
     path("methodology/", views.MethodologyView.as_view(), name="methodology"),
     path(
@@ -44,4 +49,9 @@ urlpatterns = [
         name="gev_create",
     ),
     path("gev/<uuid:pk>/", views.GEVRunDetailView.as_view(), name="gev_detail"),
+    path(
+        "gev/<uuid:pk>/delete/",
+        views.GEVRunDeleteView.as_view(),
+        name="gev_delete",
+    ),
 ]
