@@ -110,6 +110,7 @@
 </div>
 
 {% if figures.annual %}<div class="figure-card mt-2"><div id="fig-annual" style="height:380px;"></div></div>{% endif %}
+{% if figures.damage %}<div class="figure-card"><div id="fig-damage" style="height:360px;"></div></div>{% endif %}
 {% if figures.magnitude %}<div class="figure-card"><div id="fig-magnitude" style="height:360px;"></div></div>{% endif %}
 {% if figures.monthly %}<div class="figure-card"><div id="fig-monthly" style="height:340px;"></div></div>{% endif %}
 {% if figures.counties %}<div class="figure-card"><div id="fig-counties" style="height:360px;"></div></div>{% endif %}
@@ -141,6 +142,7 @@
     Plotly.newPlot(id, fig.data, fig.layout, {responsive: true, displaylogo: false});
   }
   {% if figures.annual %}draw('fig-annual', {{ figures.annual|safe }});{% endif %}
+  {% if figures.damage %}draw('fig-damage', {{ figures.damage|safe }});{% endif %}
   {% if figures.magnitude %}draw('fig-magnitude', {{ figures.magnitude|safe }});{% endif %}
   {% if figures.monthly %}draw('fig-monthly', {{ figures.monthly|safe }});{% endif %}
   {% if figures.counties %}draw('fig-counties', {{ figures.counties|safe }});{% endif %}

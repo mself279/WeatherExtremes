@@ -737,6 +737,14 @@ class StormEventsBrowseView(View):
                 title=f"{spec.label} magnitude distribution",
                 unit=spec.magnitude_unit,
             )
+        # Only show the property-damage chart when there's actually nonzero
+        # damage. Some perils (Lightning, Drought, etc.) routinely come back
+        # with the field empty for every event.
+        if summary.total_damage_property_usd > 0:
+            figures["damage"] = se_summarize.annual_damage_property_figure(
+                summary,
+                title=f"{spec.label} property damage per year — {state_name}",
+            )
 
         return render(request, self.template_name, {
             "form": form,

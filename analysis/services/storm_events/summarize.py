@@ -23,6 +23,7 @@ class EventsSummary:
     total_damage_crops_usd: float
     top_counties: list[tuple[str, int]]      # (county, count) sorted desc, top 10
     annual_counts: list[tuple[int, int]]     # (year, count) full range
+    annual_damage_property: list[tuple[int, float]]  # (year, USD) full range
     monthly_counts: list[tuple[int, int]]    # (month 1-12, count)
     magnitude_breakdown: dict[str, int] = field(default_factory=dict)
 
@@ -34,8 +35,8 @@ def summarize(df: pd.DataFrame, *, magnitude_label: str = "") -> EventsSummary:
             n_events=0, year_first=None, year_last=None,
             total_injuries=0, total_deaths=0,
             total_damage_property_usd=0.0, total_damage_crops_usd=0.0,
-            top_counties=[], annual_counts=[], monthly_counts=[],
-            magnitude_breakdown={},
+            top_counties=[], annual_counts=[], annual_damage_property=[],
+            monthly_counts=[], magnitude_breakdown={},
         )
 
     years = df["year"].dropna()
@@ -44,11 +45,21 @@ def summarize(df: pd.DataFrame, *, magnitude_label: str = "") -> EventsSummary:
 
     # Annual counts across the full year range (so years with zero events show as zeros).
     if year_first is not None and year_last is not None:
-        all_years = range(year_first, year_last + 1)
+        all_years = list(range(year_first, year_last + 1))
         yr_series = df["year"].astype("Int64").value_counts().to_dict()
         annual = [(y, int(yr_series.get(y, 0))) for y in all_years]
+        # Annual property-damage totals over the same year range. NaN damages
+        # contribute 0 so years with reports-without-damage stay at 0.
+        damage_by_year = (
+            df.assign(_d=df["damage_property_usd"].fillna(0.0))
+              .groupby(df["year"].astype("Int64"))["_d"]
+              .sum()
+              .to_dict()
+        )
+        annual_damage = [(y, float(damage_by_year.get(y, 0.0))) for y in all_years]
     else:
         annual = []
+        annual_damage = []
 
     monthly = []
     if "month" in df.columns:
@@ -84,6 +95,7 @@ def summarize(df: pd.DataFrame, *, magnitude_label: str = "") -> EventsSummary:
         total_damage_crops_usd=float(df["damage_crops_usd"].fillna(0).sum()),
         top_counties=top_counties,
         annual_counts=annual,
+        annual_damage_property=annual_damage,
         monthly_counts=monthly,
         magnitude_breakdown=mag_breakdown,
     )
@@ -122,6 +134,31 @@ def annual_counts_figure(s: EventsSummary, *, title: str) -> str:
         title=title,
         xaxis_title="Year",
         yaxis_title="Events per year",
+        **_LAYOUT_DEFAULTS,
+    )
+    return fig.to_json()
+
+
+def annual_damage_property_figure(s: EventsSummary, *, title: str) -> str:
+    """Annual property damage (USD) per year. The view should only render this
+    figure when ``s.total_damage_property_usd > 0``; this function will render
+    an all-zero chart otherwise rather than fail."""
+    import plotly.graph_objects as go
+
+    if not s.annual_damage_property:
+        return _empty_figure(title)
+    years = [y for y, _ in s.annual_damage_property]
+    damages = [d for _, d in s.annual_damage_property]
+    fig = go.Figure(go.Bar(
+        x=years, y=damages,
+        marker_color="rgb(214,39,40)",
+        hovertemplate="%{x}: $%{y:,.0f}<extra></extra>",
+        name="Property damage",
+    ))
+    fig.update_layout(
+        title=title,
+        xaxis_title="Year",
+        yaxis_title="Property damage (USD)",
         **_LAYOUT_DEFAULTS,
     )
     return fig.to_json()

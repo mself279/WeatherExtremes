@@ -237,6 +237,38 @@ def test_summarize_three_events_aggregates_correctly():
     assert s.magnitude_breakdown == {"EF1": 1, "EF3": 1, "EF5": 1}
 
 
+def test_summarize_annual_damage_property_aggregates_by_year_full_range():
+    # Two 2011 tornadoes and one 2020 — annual_damage_property should fill
+    # 2012-2019 as zeros so the chart shows the gap visibly.
+    rows = [
+        "1,Tornado,MO,29,A,1,01-JAN-2011 00:00:00,01-JAN-2011 00:30:00,2011,,EF3,0,0,$25M,$0,0,0,0,0",
+        "2,Tornado,MO,29,B,1,02-JAN-2011 00:00:00,02-JAN-2011 00:30:00,2011,,EF3,0,0,$10M,$0,0,0,0,0",
+        "3,Tornado,MO,29,C,1,03-APR-2020 00:00:00,03-APR-2020 00:30:00,2020,,EF1,0,0,$1M,$0,0,0,0,0",
+    ]
+    parsed = parse_events_csv(_csv(rows))
+    s = summarize(parsed.df)
+    by_year = dict(s.annual_damage_property)
+    assert by_year[2011] == 35_000_000.0
+    assert by_year[2012] == 0.0
+    assert by_year[2019] == 0.0
+    assert by_year[2020] == 1_000_000.0
+    assert s.total_damage_property_usd == 36_000_000.0
+
+
+def test_summarize_handles_all_nan_damage_with_zero_total():
+    # No damage values populated — total_damage stays at 0 (the view uses this
+    # to suppress the chart entirely).
+    rows = [
+        "1,Lightning,MO,29,A,1,01-JAN-2020 00:00:00,01-JAN-2020 00:01:00,2020,,,0,0,,,0,0,0,0",
+    ]
+    parsed = parse_events_csv(_csv(rows))
+    s = summarize(parsed.df)
+    assert s.total_damage_property_usd == 0.0
+    # annual_damage_property is still computed (all zeros); view checks total > 0
+    # to decide whether to render the figure.
+    assert s.annual_damage_property == [(2020, 0.0)]
+
+
 def test_summarize_numeric_magnitude_bucketing_for_hail():
     # No TOR_F_SCALE → use numeric magnitude bucketing
     header = "EVENT_ID,EVENT_TYPE,STATE,STATE_FIPS,CZ_NAME,BEGIN_DATE_TIME,YEAR,MAGNITUDE,DAMAGE_PROPERTY,DAMAGE_CROPS"
