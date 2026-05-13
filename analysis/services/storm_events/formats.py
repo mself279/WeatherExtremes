@@ -16,10 +16,12 @@ import pandas as pd
 
 
 _DATE_FORMATS = (
-    "%d-%b-%Y %H:%M:%S",  # NCEI interactive endpoint: "11-MAY-2011 14:50:00"
-    "%d-%b-%y %H:%M:%S",  # 2-digit year variant
+    "%m/%d/%Y",            # NCEI interactive CSV: "01/03/1950" (BEGIN_DATE alone)
+    "%d-%b-%Y %H:%M:%S",   # NCEI bulk archive: "11-MAY-2011 14:50:00"
+    "%d-%b-%y %H:%M:%S",   # 2-digit year variant
     "%m/%d/%Y %H:%M:%S",
     "%Y-%m-%d %H:%M:%S",
+    "%Y-%m-%d",
 )
 _DAMAGE_RE = re.compile(r"^\$?\s*([\d.]+)\s*([KMBT]?)$", re.IGNORECASE)
 _DAMAGE_MULT = {"": 1.0, "K": 1e3, "M": 1e6, "B": 1e9, "T": 1e12}
@@ -59,12 +61,26 @@ _CANONICAL_COLS = [
 
 
 def _parse_damage(val: object) -> float:
-    """Parse strings like ``$1.5M``, ``$500K``, ``$0``, ``0.00K`` to USD float."""
+    """Parse a damage value to USD float.
+
+    Handles two formats NCEI ships:
+    * Plain integers like ``2500000`` (the ``DAMAGE_*_NUM`` columns from the
+      interactive search CSV).
+    * Suffixed strings like ``$1.5M``, ``$500K``, ``$0`` (the
+      ``DAMAGE_PROPERTY`` / ``DAMAGE_CROPS`` columns from the bulk archive).
+    Empty or non-numeric values return NaN.
+    """
     if val is None:
         return float("nan")
     s = str(val).strip()
     if not s or s.lower() in ("nan", "none"):
         return float("nan")
+    # Try plain numeric first (interactive CSV's *_NUM columns).
+    try:
+        return float(s)
+    except ValueError:
+        pass
+    # Fall back to the "$XXX.X[KMBT]" format from the bulk archive.
     m = _DAMAGE_RE.match(s)
     if not m:
         return float("nan")
@@ -123,13 +139,20 @@ def parse_events_csv(data: bytes | str) -> ParsedEvents:
 
     out["event_id"] = col("EVENT_ID")
     out["event_type"] = col("EVENT_TYPE")
-    out["state"] = col("STATE")
+    # Bulk archive uses STATE (full name); interactive endpoint uses STATE_ABBR.
+    out["state"] = col("STATE", "STATE_ABBR")
     out["state_fips"] = col("STATE_FIPS")
-    out["cz_name"] = col("CZ_NAME", "COUNTY_NAME")
+    # Interactive endpoint: CZ_NAME_STR. Bulk archive: CZ_NAME. Either way is title-cased downstream.
+    out["cz_name"] = col("CZ_NAME_STR", "CZ_NAME", "COUNTY_NAME")
     out["cz_fips"] = col("CZ_FIPS")
 
-    begin_raw = col("BEGIN_DATE_TIME", "BEGIN_TIME")
-    end_raw = col("END_DATE_TIME", "END_TIME")
+    # Date column: prefer the combined date+time form (bulk archive), fall back
+    # to the date-only column from the interactive CSV. BEGIN_TIME alone is a
+    # time-of-day string like "1100" and is NOT a valid datetime — never fall
+    # back to it (the earlier bug treated it as a datetime, yielding NaT for
+    # every row).
+    begin_raw = col("BEGIN_DATE_TIME", "BEGIN_DATE")
+    end_raw = col("END_DATE_TIME", "END_DATE")
     out["begin_datetime"] = _parse_datetime_series(begin_raw)
     out["end_datetime"] = _parse_datetime_series(end_raw)
     # Derive year and month from begin_datetime; fall back to YEAR column.
@@ -146,8 +169,10 @@ def parse_events_csv(data: bytes | str) -> ParsedEvents:
     out["injuries_direct"] = _to_int(col("INJURIES_DIRECT"))
     out["deaths_direct"] = _to_int(col("DEATHS_DIRECT"))
 
-    out["damage_property_usd"] = col("DAMAGE_PROPERTY").apply(_parse_damage)
-    out["damage_crops_usd"] = col("DAMAGE_CROPS").apply(_parse_damage)
+    # Interactive endpoint has DAMAGE_*_NUM (plain integers); bulk archive has
+    # DAMAGE_* with "$XXX.X[KMBT]" formatting. _parse_damage handles both.
+    out["damage_property_usd"] = col("DAMAGE_PROPERTY_NUM", "DAMAGE_PROPERTY").apply(_parse_damage)
+    out["damage_crops_usd"] = col("DAMAGE_CROPS_NUM", "DAMAGE_CROPS").apply(_parse_damage)
 
     out["begin_lat"] = _to_float(col("BEGIN_LAT"))
     out["begin_lon"] = _to_float(col("BEGIN_LON"))

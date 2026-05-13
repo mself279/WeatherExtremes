@@ -144,6 +144,49 @@ def test_parse_handles_missing_optional_columns():
     assert pd.isna(df.iloc[0]["begin_lat"])
 
 
+def test_parse_handles_interactive_endpoint_format():
+    """Regression: the interactive search CSV uses different column names than the
+    bulk archive. Both must parse correctly with the same code path."""
+    header = (
+        "EVENT_ID,CZ_NAME_STR,BEGIN_LOCATION,BEGIN_DATE,BEGIN_TIME,EVENT_TYPE,"
+        "MAGNITUDE,TOR_F_SCALE,DEATHS_DIRECT,INJURIES_DIRECT,"
+        "DAMAGE_PROPERTY_NUM,DAMAGE_CROPS_NUM,STATE_ABBR,CZ_TIMEZONE,"
+        "MAGNITUDE_TYPE,EPISODE_ID,CZ_TYPE,CZ_FIPS,WFO,INJURIES_INDIRECT,"
+        "DEATHS_INDIRECT,SOURCE,FLOOD_CAUSE,TOR_LENGTH,TOR_WIDTH,BEGIN_RANGE,"
+        "BEGIN_AZIMUTH,END_RANGE,END_AZIMUTH,END_LOCATION,END_DATE,END_TIME,"
+        "BEGIN_LAT,BEGIN_LON,END_LAT,END_LON,EVENT_NARRATIVE,EPISODE_NARRATIVE,"
+        "ABSOLUTE_ROWNUMBER"
+    )
+    rows = [
+        # Three real Missouri tornado rows from the NCEI interactive CSV.
+        "10063615,ST. LOUIS CO.,,01/03/1950,1100,Tornado,0,F3,0,3,2500000,0,MO,CST,,,C,189,,0,0,,,6.2,150,,,,,,01/03/1950,1100,38.77,-90.22,38.82,-90.12,,,1",
+        "10063626,NEW MADRID CO.,,11/13/1951,1330,Tornado,0,F3,0,1,25000,0,MO,CST,,,C,143,,0,0,,,1,27,,,,,,11/13/1951,1330,36.62,-89.75,,,,,2",
+        "10063632,PEMISCOT CO.,,03/21/1952,2000,Tornado,0,F4,17,100,2500000,0,MO,CST,,,C,155,,0,0,,,6.5,880,,,,,,03/21/1952,2000,36.05,-89.82,36.07,-89.70,,,3",
+    ]
+    parsed = parse_events_csv(_csv(rows, header=header))
+    df = parsed.df
+    assert parsed.raw_rows == 3
+
+    # All dates parsed successfully — none NaT.
+    assert df["year"].notna().all()
+    assert list(df["year"].astype(int)) == [1950, 1951, 1952]
+    # Months too (1, 11, 3 from the begin dates).
+    assert list(df["month"].astype(int)) == [1, 11, 3]
+
+    # Counties found via CZ_NAME_STR fallback.
+    assert df["cz_name"].iloc[0] == "ST. LOUIS CO."
+    assert df["cz_name"].iloc[2] == "PEMISCOT CO."
+
+    # Damage values come from DAMAGE_PROPERTY_NUM (raw integers).
+    assert df["damage_property_usd"].iloc[0] == 2_500_000.0
+    assert df["damage_property_usd"].iloc[1] == 25_000.0
+    assert df["damage_property_usd"].iloc[2] == 2_500_000.0
+
+    # Casualty fields still work (unchanged column names).
+    assert df["deaths_direct"].iloc[2] == 17
+    assert df["injuries_direct"].iloc[2] == 100
+
+
 def test_parse_handles_damage_edge_cases():
     rows = [
         "1,Tornado,MO,29,X,1,01-JAN-2020 00:00:00,01-JAN-2020 00:30:00,2020,,EF2,0,0,$1.5K,$0,0,0,0,0",
