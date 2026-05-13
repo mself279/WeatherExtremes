@@ -44,6 +44,11 @@ urlpatterns = [
     path("runs/compare/", views.RunComparisonView.as_view(), name="run_compare"),
     path("methodology/", views.MethodologyView.as_view(), name="methodology"),
     path(
+        "storm-events/",
+        views.StormEventsBrowseView.as_view(),
+        name="storm_events_browse",
+    ),
+    path(
         "datasets/<uuid:pk>/gev/",
         views.GEVRunCreateView.as_view(),
         name="gev_create",

@@ -29,6 +29,7 @@ from .forms import (
     GEVRunForm,
     GhcnImportForm,
     RunComparisonForm,
+    StormEventsBrowseForm,
 )
 from .models import (
     AnalysisRun,
@@ -45,6 +46,11 @@ from .services.ghcn import fetcher as ghcn_fetcher
 from .services.ghcn import summarize as ghcn_summarize
 from .services.ghcn.formats import read_station_csv
 from .services.ghcn.transform import transform_to_indicators
+from .services.storm_events import event_types as se_event_types
+from .services.storm_events import fetcher as se_fetcher
+from .services.storm_events import states as se_states
+from .services.storm_events import summarize as se_summarize
+from .services.storm_events.formats import parse_events_csv
 from .services.io import parse_input
 from .services.pipeline import run_analysis
 
@@ -655,3 +661,89 @@ class GEVRunDeleteView(View):
         run.delete()
         messages.success(request, f"Deleted GEV run '{label}'.")
         return redirect(request.POST.get("next") or dataset_url)
+
+
+# ---------------------------------------------------------------------------
+# Storm Events browse + exploration (NCEI on-demand)
+# ---------------------------------------------------------------------------
+
+
+class StormEventsBrowseView(View):
+    """Combined filter form + exploration results.
+
+    GET with no params: render the empty form.
+    GET with valid form params: fetch from NCEI (or cache), parse, render
+    the exploration charts inline below the form.
+    """
+
+    template_name = "analysis/storm_events.html"
+
+    def get(self, request):
+        # No filters yet → render form alone.
+        if "statefips" not in request.GET:
+            form = StormEventsBrowseForm()
+            return render(request, self.template_name, {"form": form})
+
+        form = StormEventsBrowseForm(request.GET)
+        if not form.is_valid():
+            return render(request, self.template_name, {"form": form})
+
+        cd = form.cleaned_data
+        spec = se_event_types.by_code(cd["event_type"])
+        if spec is None:
+            messages.error(request, "Unknown event type.")
+            return render(request, self.template_name, {"form": form})
+
+        # Only send the magnitude filter that's meaningful for the chosen
+        # event type; defaults for the others.
+        params = se_fetcher.FilterParams(
+            statefips=cd["statefips"],
+            event_type_ncei=spec.ncei_value,
+            begin_year=int(cd["begin_year"]),
+            end_year=int(cd["end_year"]),
+            tornfilter=cd.get("tornfilter") or "0" if spec.magnitude_field == "tornfilter" else "0",
+            hailfilter=cd.get("hailfilter") or "0.00" if spec.magnitude_field == "hailfilter" else "0.00",
+            windfilter=cd.get("windfilter") or "000" if spec.magnitude_field == "windfilter" else "000",
+        )
+
+        cache_dir = Path(settings.MEDIA_ROOT) / "storm_events_cache"
+        try:
+            csv_bytes = se_fetcher.fetch_csv(params, cache_dir)
+        except se_fetcher.FetchError as exc:
+            logger.exception("Storm Events fetch failed", extra={"params": params})
+            messages.error(request, f"NCEI fetch failed: {exc}")
+            return render(request, self.template_name, {"form": form})
+
+        parsed = parse_events_csv(csv_bytes)
+        summary = se_summarize.summarize(parsed.df)
+
+        state_name = se_states.display_name(cd["statefips"])
+        title_prefix = f"{spec.label} events — {state_name} {cd['begin_year']}–{cd['end_year']}"
+
+        figures = {
+            "annual": se_summarize.annual_counts_figure(summary, title=f"{title_prefix}"),
+            "monthly": se_summarize.monthly_counts_figure(
+                summary,
+                title=f"Seasonality — {spec.label.lower()} events by month",
+            ),
+            "counties": se_summarize.top_counties_figure(
+                summary,
+                title=f"Top counties by {spec.label.lower()} event count",
+            ),
+        }
+        if spec.magnitude_field or summary.magnitude_breakdown:
+            figures["magnitude"] = se_summarize.magnitude_breakdown_figure(
+                summary,
+                title=f"{spec.label} magnitude distribution",
+                unit=spec.magnitude_unit,
+            )
+
+        return render(request, self.template_name, {
+            "form": form,
+            "summary": summary,
+            "figures": figures,
+            "event_type_spec": spec,
+            "state_name": state_name,
+            "params": params,
+            "ncei_url": se_fetcher.build_url(params),
+        })

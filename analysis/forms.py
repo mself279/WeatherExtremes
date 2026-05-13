@@ -281,6 +281,59 @@ class GhcnImportForm(forms.Form):
         return cleaned
 
 
+class StormEventsBrowseForm(forms.Form):
+    """Filter inputs for an NCEI Storm Events query."""
+
+    from .services.storm_events.event_types import event_type_choices
+    from .services.storm_events.states import state_choices
+
+    statefips = forms.ChoiceField(
+        choices=state_choices(),
+        label="State",
+        initial="29,MISSOURI",
+    )
+    event_type = forms.ChoiceField(
+        choices=event_type_choices(),
+        label="Event type",
+        initial="tornado",
+    )
+    begin_year = forms.IntegerField(
+        label="Start year", min_value=1950, max_value=2100, initial=1950,
+    )
+    end_year = forms.IntegerField(
+        label="End year", min_value=1950, max_value=2100, initial=2024,
+    )
+    tornfilter = forms.ChoiceField(
+        choices=(("0", "All"), ("1", "F1/EF1+"), ("2", "F2/EF2+"),
+                 ("3", "F3/EF3+"), ("4", "F4/EF4+"), ("5", "F5/EF5+")),
+        label="Tornado scale (only applies to tornadoes)",
+        initial="3",
+        required=False,
+    )
+    hailfilter = forms.ChoiceField(
+        choices=(("0.00", "All"), ("0.75", "0.75 in+"), ("1.00", "1.00 in+"),
+                 ("1.50", "1.50 in+"), ("2.00", "2.00 in+"), ("3.00", "3.00 in+")),
+        label="Hail diameter (only applies to hail)",
+        initial="0.00",
+        required=False,
+    )
+    windfilter = forms.ChoiceField(
+        choices=(("000", "All"), ("050", "50 kt+"), ("065", "65 kt+"),
+                 ("075", "75 kt+"), ("100", "100 kt+")),
+        label="Wind speed (only applies to wind events)",
+        initial="000",
+        required=False,
+    )
+
+    def clean(self):
+        cleaned = super().clean()
+        by = cleaned.get("begin_year")
+        ey = cleaned.get("end_year")
+        if by is not None and ey is not None and ey < by:
+            raise forms.ValidationError("End year must be >= start year.")
+        return cleaned
+
+
 class GEVRunForm(forms.Form):
     """Configure a GEV analysis on a GHCN-derived Dataset."""
 

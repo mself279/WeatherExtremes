@@ -1,0 +1,148 @@
+{% extends "analysis/base.html" %}
+{% block title %}Storm Events – WeatherExtremes{% endblock %}
+
+{% block extra_head %}
+<style>
+  .figure-card { padding: 1rem 1rem 0.5rem; background: #fff; border-radius: 0.5rem;
+                 border: 1px solid #e5e7eb; margin-bottom: 1rem; }
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+                gap: 0.6rem; margin-bottom: 0.75rem; }
+  .stat { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0.4rem;
+          padding: 0.5rem 0.7rem; }
+  .stat .lbl { color: #6b7280; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .stat .val { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 1rem; }
+  .ncei-link { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-end justify-content-between mb-2">
+  <div>
+    <h1 class="h3 mb-1">Storm Events</h1>
+    <div class="text-muted small">
+      Filtered query against NOAA's Storm Events Database (1950–present).
+      Results are fetched on demand from NCEI and cached locally.
+    </div>
+  </div>
+</div>
+
+<form method="get" class="card p-3 mb-3">
+  <div class="row g-3">
+    <div class="col-md-4">
+      <label class="form-label" for="{{ form.statefips.id_for_label }}">{{ form.statefips.label }}</label>
+      {{ form.statefips }}
+    </div>
+    <div class="col-md-4">
+      <label class="form-label" for="{{ form.event_type.id_for_label }}">{{ form.event_type.label }}</label>
+      {{ form.event_type }}
+    </div>
+    <div class="col-md-2">
+      <label class="form-label" for="{{ form.begin_year.id_for_label }}">{{ form.begin_year.label }}</label>
+      {{ form.begin_year }}
+    </div>
+    <div class="col-md-2">
+      <label class="form-label" for="{{ form.end_year.id_for_label }}">{{ form.end_year.label }}</label>
+      {{ form.end_year }}
+    </div>
+
+    <div class="col-md-4">
+      <label class="form-label" for="{{ form.tornfilter.id_for_label }}">{{ form.tornfilter.label }}</label>
+      {{ form.tornfilter }}
+    </div>
+    <div class="col-md-4">
+      <label class="form-label" for="{{ form.hailfilter.id_for_label }}">{{ form.hailfilter.label }}</label>
+      {{ form.hailfilter }}
+    </div>
+    <div class="col-md-4">
+      <label class="form-label" for="{{ form.windfilter.id_for_label }}">{{ form.windfilter.label }}</label>
+      {{ form.windfilter }}
+    </div>
+  </div>
+
+  {% if form.non_field_errors %}
+  <div class="alert alert-danger small mt-3 mb-0">{{ form.non_field_errors }}</div>
+  {% endif %}
+
+  <div class="d-flex justify-content-end mt-3">
+    <button class="btn btn-primary" type="submit">Search Storm Events</button>
+  </div>
+</form>
+
+{% if summary is not None and event_type_spec %}
+<div class="d-flex align-items-end justify-content-between mb-2 mt-4">
+  <h2 class="h5 mb-0">{{ event_type_spec.label }} events — {{ state_name }} ({{ params.begin_year }}–{{ params.end_year }})</h2>
+  <a href="{{ ncei_url }}" target="_blank" class="small text-muted" title="View raw NCEI CSV">
+    Raw CSV ↗
+  </a>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-6">
+    <div class="figure-card">
+      <h3 class="h6 text-uppercase text-muted mb-2">Summary</h3>
+      <div class="stats-grid">
+        <div class="stat"><div class="lbl">Events</div><div class="val">{{ summary.n_events }}</div></div>
+        <div class="stat"><div class="lbl">Year range</div>
+          <div class="val">{% if summary.year_first %}{{ summary.year_first }}–{{ summary.year_last }}{% else %}—{% endif %}</div></div>
+        <div class="stat"><div class="lbl">Injuries</div><div class="val">{{ summary.total_injuries }}</div></div>
+        <div class="stat"><div class="lbl">Deaths</div><div class="val">{{ summary.total_deaths }}</div></div>
+        <div class="stat"><div class="lbl">Property damage</div>
+          <div class="val">${{ summary.total_damage_property_usd|floatformat:0 }}</div></div>
+        <div class="stat"><div class="lbl">Crop damage</div>
+          <div class="val">${{ summary.total_damage_crops_usd|floatformat:0 }}</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="figure-card">
+      <h3 class="h6 text-uppercase text-muted mb-2">Top counties</h3>
+      {% if summary.top_counties %}
+      <ol class="mb-0 small">
+        {% for county, count in summary.top_counties %}
+          <li>{{ county }} — {{ count }}</li>
+        {% endfor %}
+      </ol>
+      {% else %}
+      <div class="text-muted small">No county data.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if figures.annual %}<div class="figure-card mt-2"><div id="fig-annual" style="height:380px;"></div></div>{% endif %}
+{% if figures.magnitude %}<div class="figure-card"><div id="fig-magnitude" style="height:360px;"></div></div>{% endif %}
+{% if figures.monthly %}<div class="figure-card"><div id="fig-monthly" style="height:340px;"></div></div>{% endif %}
+{% if figures.counties %}<div class="figure-card"><div id="fig-counties" style="height:360px;"></div></div>{% endif %}
+
+{% if summary.n_events == 0 %}
+<div class="alert alert-warning">
+  No events matched these filters. Try a wider date range, removing the magnitude filter,
+  or selecting "All states".
+</div>
+{% endif %}
+
+<div class="text-muted small mt-3">
+  Data source: <a href="https://www.ncei.noaa.gov/stormevents/" target="_blank">NOAA Storm Events Database</a>.
+  Pre-1996 records are tornado-only; magnitude scales changed from F to EF in 2007.
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  // Light Bootstrap class injection (the form is rendered field-by-field).
+  document.querySelectorAll('form input, form select').forEach(el => {
+    if (el.tagName === 'SELECT') el.classList.add('form-select');
+    else el.classList.add('form-control');
+  });
+
+  function draw(id, fig) {
+    if (!fig || !document.getElementById(id)) return;
+    Plotly.newPlot(id, fig.data, fig.layout, {responsive: true, displaylogo: false});
+  }
+  {% if figures.annual %}draw('fig-annual', {{ figures.annual|safe }});{% endif %}
+  {% if figures.magnitude %}draw('fig-magnitude', {{ figures.magnitude|safe }});{% endif %}
+  {% if figures.monthly %}draw('fig-monthly', {{ figures.monthly|safe }});{% endif %}
+  {% if figures.counties %}draw('fig-counties', {{ figures.counties|safe }});{% endif %}
+</script>
+{% endblock %}
