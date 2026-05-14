@@ -74,6 +74,12 @@ class MethodologyView(TemplateView):
     template_name = "analysis/methodology.html"
 
 
+class UseCasesView(TemplateView):
+    """Worked examples — four real analyses with reproduce-yourself links."""
+
+    template_name = "analysis/use_cases.html"
+
+
 # ---------------------------------------------------------------------------
 # GHCN browse + import
 # ---------------------------------------------------------------------------

@@ -43,6 +43,7 @@ urlpatterns = [
     ),
     path("runs/compare/", views.RunComparisonView.as_view(), name="run_compare"),
     path("methodology/", views.MethodologyView.as_view(), name="methodology"),
+    path("use-cases/", views.UseCasesView.as_view(), name="use_cases"),
     path(
         "storm-events/",
         views.StormEventsBrowseView.as_view(),

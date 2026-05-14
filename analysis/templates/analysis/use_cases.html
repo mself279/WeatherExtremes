@@ -1,0 +1,470 @@
+{% extends "analysis/base.html" %}
+{% load static %}
+{% block title %}Use Cases – WeatherExtremes{% endblock %}
+
+{% block extra_head %}
+<style>
+  .uc { max-width: 920px; }
+  .uc h2 { margin-top: 2.4rem; padding-top: 0.6rem; }
+  .uc h3 { margin-top: 1.4rem; font-size: 1.05rem; color: #374151; }
+  .uc p, .uc li { line-height: 1.6; }
+  .uc .toc { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0.5rem;
+             padding: 0.9rem 1.2rem; margin-bottom: 1.5rem; }
+  .uc .toc ol { margin-bottom: 0; }
+  .uc .recipe { background: #f3f4f6; border-left: 3px solid #6366f1;
+                padding: 0.7rem 0.9rem; margin: 1rem 0;
+                font-size: 0.92rem; border-radius: 0 0.3rem 0.3rem 0; }
+  .uc .recipe dt { display: inline-block; width: 7rem; font-weight: 600; color: #4b5563; }
+  .uc .recipe dd { display: inline-block; margin-bottom: 0; }
+  .uc .recipe-line { margin-bottom: 0.2rem; }
+  .uc .recipe a { font-weight: 600; }
+  .uc figure { margin: 1.2rem 0; }
+  .uc figure img { width: 100%; max-width: 100%; border: 1px solid #e5e7eb;
+                   border-radius: 0.4rem; background: #fff; }
+  .uc figure figcaption { color: #6b7280; font-size: 0.85rem; margin-top: 0.4rem;
+                          text-align: center; font-style: italic; }
+  .uc .placeholder { border: 2px dashed #d1d5db; border-radius: 0.4rem;
+                     padding: 2.5rem 1rem; text-align: center; background: #f9fafb;
+                     color: #6b7280; font-size: 0.9rem; }
+  .uc .placeholder code { background: rgba(0,0,0,0.05); padding: 0.1rem 0.3rem;
+                          border-radius: 0.2rem; font-size: 0.85rem; }
+  .uc .takeaway { background: #ecfdf5; border: 1px solid #a7f3d0;
+                  border-radius: 0.5rem; padding: 0.9rem 1.2rem; margin: 1.4rem 0; }
+  .uc .takeaway h4 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.06em;
+                     color: #047857; margin: 0 0 0.5rem 0; }
+  .uc .takeaway ul { margin-bottom: 0; padding-left: 1.2rem; }
+  .uc .takeaway li { line-height: 1.5; margin-bottom: 0.3rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="uc">
+  <h1 class="h3 mb-2">Use Cases</h1>
+  <p class="text-muted">
+    Four worked examples of using WeatherExtremes to interpret real climate data.
+    Each case explains the question being asked, the data behind it, and how to
+    read the resulting charts. Every case is reproducible — click "Reproduce
+    this on the live site" to open the same filters in the analysis pages.
+  </p>
+
+  <div class="toc">
+    <strong class="d-block mb-2">Contents</strong>
+    <ol class="mb-0">
+      <li><a href="#mo-tornadoes">Missouri tornadoes (EF3+) — frequency</a></li>
+      <li><a href="#stl-precip">St. Louis precipitation — frequency &amp; probability</a></li>
+      <li><a href="#san-diego-precip">San Diego precipitation — frequency &amp; probability</a></li>
+      <li><a href="#dallas-tmin">Dallas cold extremes — frequency &amp; probability</a></li>
+      <li><a href="#how-to-read">How to read this page</a></li>
+    </ol>
+  </div>
+
+  {# ====================================================================== #}
+  <h2 id="mo-tornadoes">1. Missouri tornadoes (EF3+, 1950–present)</h2>
+  <p>
+    How has the frequency of significant tornadoes — those rated EF3 or stronger —
+    in Missouri changed over time? This case uses NOAA's Storm Events Database
+    going back to 1950, the longest-running consistent record of US tornado
+    activity.
+  </p>
+
+  <div class="recipe">
+    <div class="recipe-line"><dt>Data source</dt><dd>NOAA Storm Events Database</dd></div>
+    <div class="recipe-line"><dt>State</dt><dd>Missouri</dd></div>
+    <div class="recipe-line"><dt>Event type</dt><dd>Tornado</dd></div>
+    <div class="recipe-line"><dt>Year range</dt><dd>1950–2024</dd></div>
+    <div class="recipe-line"><dt>Magnitude</dt><dd>F3 / EF3 and stronger</dd></div>
+    <div class="recipe-line"><dt>Analysis</dt><dd>Frequency (KDE rate)</dd></div>
+    <div class="recipe-line mt-2">
+      <a href="{% url 'analysis:storm_events_browse' %}?statefips=29,MISSOURI&event_type=tornado&begin_year=1950&end_year=2024&tornfilter=3">
+        Reproduce this on the live site →
+      </a>
+    </div>
+  </div>
+
+  <h3>Frequency analysis</h3>
+
+  <figure>
+    {% include "analysis/_use_case_image.html" with src="use_cases/mo_tornadoes/frequency.png" alt="EF3+ tornado frequency in Missouri, 1950–2024" %}
+    <figcaption>
+      Estimated annual occurrence rate of EF3+ tornadoes in Missouri.
+    </figcaption>
+  </figure>
+
+  <p>
+    The headline finding is that significant tornadoes in Missouri have become
+    less frequent over the post-war period, but with substantial decade-to-decade
+    variability. The 1950s through the early 1970s saw the highest rates; the
+    trend has drifted downward since, with the occasional outlier year
+    (2011 stands out — the Joplin outbreak alone contributed several EF3+ events).
+  </p>
+  <p>
+    Picking the right bandwidth matters here. A 5-year window makes year-to-year
+    noise dominate the picture and you'll see spikes and drops everywhere. A
+    30-year window flattens the genuine mid-century elevated rate into a
+    barely-perceptible bump. A 10-year window strikes a useful balance — the
+    elevated 1950s–70s rate is visible, the long-run decline reads clearly, and
+    single anomaly years don't dictate the trend.
+  </p>
+  <p>
+    The confidence interval widens at both ends of the record. In the early years
+    that's about data quality — Storm Events records become less complete the
+    further back you go, and the F/EF scale calibration changed in 2007 (the
+    methodology section has more on this). In the most recent years it's because
+    we have fewer events to average over relative to the bandwidth window. The
+    practical implication: estimates from the most recent decade carry more
+    uncertainty than the long-run averages suggest, and "reversion to higher
+    historical levels" is a reasonable alternative scenario for planning purposes.
+  </p>
+  <p>
+    What this analysis doesn't tell you: the <em>intensity</em> of any given
+    tornado within the EF3+ bucket. An EF3 in 1955 and an EF5 in 2011 both count
+    as one event in this rate. If intensity matters for your question, look at
+    the magnitude breakdown chart in the Storm Events explorer alongside this
+    rate curve.
+  </p>
+  <p class="text-muted small">
+    Why no GEV section for this case: the tornado scale is ordinal (EF0 through
+    EF5), not a continuous magnitude. GEV models the distribution of an annual
+    maximum of a continuous variable like rainfall depth or wind speed. For
+    categorical scale data, the rate analysis shown above is the right tool.
+  </p>
+
+  <div class="takeaway">
+    <h4>Takeaways</h4>
+    <ul>
+      <li>The historical rate of EF3+ tornadoes in Missouri has declined over the long run, but the trend is noisy enough that recent low years aren't a reliable baseline for future planning.</li>
+      <li>Bandwidth choice substantially changes the visual story; report which you used.</li>
+      <li>The confidence band widens at both ends — be cautious about over-interpreting the recent decade.</li>
+    </ul>
+  </div>
+
+  {# ====================================================================== #}
+  <h2 id="stl-precip">2. St. Louis precipitation (1938–present)</h2>
+  <p>
+    St. Louis Lambert International Airport has continuous daily precipitation
+    records going back to 1938. This case asks two questions: how often do
+    heavy precipitation events (over 3 inches in a day) occur, and how does the
+    distribution of the annual maximum daily precipitation look? The latter
+    question is sharpened by the fact that St. Louis recorded an 8.64-inch day
+    in 2022 — a magnitude that dwarfs anything in the prior 84 years.
+  </p>
+
+  <div class="recipe">
+    <div class="recipe-line"><dt>Data source</dt><dd>GHCN-Daily station USW00013994</dd></div>
+    <div class="recipe-line"><dt>Element</dt><dd>PRCP (daily precipitation)</dd></div>
+    <div class="recipe-line"><dt>Thresholds</dt><dd>3, 4, 5, 6 inches</dd></div>
+    <div class="recipe-line"><dt>Date range</dt><dd>1938–present</dd></div>
+    <div class="recipe-line"><dt>Analyses</dt><dd>Frequency (KDE) and Probability (GEV on annual maxima)</dd></div>
+    <div class="recipe-line mt-2">
+      <a href="{% url 'analysis:ghcn_configure' 'USW00013994' %}?element=PRCP&operator=%3E&thresholds=3,+4,+5,+6">
+        Reproduce this on the live site →
+      </a>
+    </div>
+  </div>
+
+  <h3>Frequency analysis</h3>
+
+  <figure>
+    {% include "analysis/_use_case_image.html" with src="use_cases/stl_precipitation/frequency.png" alt="Rate of 3+ inch precipitation days at STL, 1938–present" %}
+    <figcaption>
+      Estimated annual rate of 3+ inch precipitation days at St. Louis Lambert.
+    </figcaption>
+  </figure>
+
+  <p>
+    The rate of 3-inch days has oscillated through the record. The 1940s–50s saw
+    a relatively high incidence (roughly 10 such days across the period), the
+    1960s–70s saw a notable dip (only one or two), and the rate climbed back up
+    from the 1990s onward. Whether you call this "stationary with noise" or
+    "non-stationary with regime shifts" depends on how you read it — both
+    interpretations are defensible from this chart alone.
+  </p>
+  <p>
+    Bandwidth choice matters more here than for tornadoes because the underlying
+    variability is higher. A 10-year window shows oscillations you might call a
+    cycle; a 30-year window flattens them. There's no single right answer; the
+    right window depends on the time horizon you care about. What's robust
+    across bandwidths: the recent decade looks roughly comparable to the long-run
+    average, with no clear monotonic trend either up or down.
+  </p>
+
+  <h3>Probability analysis</h3>
+
+  <figure>
+    {% include "analysis/_use_case_image.html" with src="use_cases/stl_precipitation/gev_annual_max.html" alt="STL annual maximum daily precipitation, 1938–present" %}
+    <figcaption>
+      Annual maximum daily precipitation per year. Note the 2022 outlier.
+    </figcaption>
+  </figure>
+
+  <figure>
+    {% include "analysis/_use_case_image.html" with src="use_cases/stl_precipitation/gev_return_levels.png" alt="STL return level curve with confidence band" %}
+    <figcaption>
+      Return level plot with 95% parametric bootstrap confidence band.
+    </figcaption>
+  </figure>
+
+  <p>
+    The 2022 single-day maximum of 8.64 inches is the dominant feature of this
+    analysis. The previous record over an 84-year period was about 5.59 inches —
+    meaning 2022 was 55% larger than anything else on record. By any reading,
+    that's an extraordinary event.
+  </p>
+  <p>
+    The fitted GEV puts the probability of an 8.64-inch day at less than 0.5%
+    annually under most parameter sets in the bootstrap distribution. The return
+    period — the expected waiting time for an event of that magnitude — ranges
+    from about 200 years to "essentially never under this distribution"
+    depending on the fitted shape parameter and which point of the parametric CI
+    you take.
+  </p>
+  <p>
+    The bucket diagnostic shows the fit isn't perfect: the GEV slightly
+    underpredicts events in the 1–2.5 inch range and overpredicts in the
+    2.5–4 inch range. This is common with rainfall data — the empirical
+    distribution has more mass near the threshold than the GEV's parametric
+    form. The shape parameter ξ comes out positive (heavy upper tail), which is
+    the expected regime for precipitation. The 2022 event sits well past the
+    bulk of the fitted PDF, so even though the GEV nominally calls it a 200-year
+    event, that's a strong claim based on a fit with very limited evidence in
+    the extreme upper tail.
+  </p>
+
+  <div class="takeaway">
+    <h4>Takeaways</h4>
+    <ul>
+      <li>The rate of 3+ inch days has oscillated, with no clear monotonic trend.</li>
+      <li>The 2022 single-day maximum of 8.64 inches is a true outlier — 55% larger than the previous 84-year record.</li>
+      <li>The GEV-implied return period for the 2022 event is on the order of 200 years, but that estimate carries large uncertainty because the fit has limited evidence in the deep upper tail.</li>
+    </ul>
+  </div>
+
+  {# ====================================================================== #}
+  <h2 id="san-diego-precip">3. San Diego precipitation (1938–present)</h2>
+  <p>
+    San Diego's precipitation profile is quite different from St. Louis's:
+    heavy days are rarer (climate), often single events tied to atmospheric
+    river passages and El Niño cycles. This case asks the same two questions
+    as STL — how often do heavy days occur, and what's the distribution of the
+    annual maximum — but expects different shapes in the answers.
+  </p>
+
+  <div class="recipe">
+    <div class="recipe-line"><dt>Data source</dt><dd>GHCN-Daily station USW00023188 (San Diego Lindbergh Field)</dd></div>
+    <div class="recipe-line"><dt>Element</dt><dd>PRCP (daily precipitation)</dd></div>
+    <div class="recipe-line"><dt>Thresholds</dt><dd>1.5, 2, 2.5 inches</dd></div>
+    <div class="recipe-line"><dt>Date range</dt><dd>1938–present</dd></div>
+    <div class="recipe-line"><dt>Analyses</dt><dd>Frequency (KDE) and Probability (GEV on annual maxima)</dd></div>
+    <div class="recipe-line mt-2">
+      <a href="{% url 'analysis:ghcn_configure' 'USW00023188' %}?element=PRCP&operator=%3E&thresholds=1.5,+2,+2.5">
+        Reproduce this on the live site →
+      </a>
+    </div>
+  </div>
+
+  <h3>Frequency analysis</h3>
+
+  <figure>
+    {% include "analysis/_use_case_image.html" with src="use_cases/san_diego_precipitation/frequency.png" alt="Rate of 1.5+ inch precipitation days at San Diego" %}
+    <figcaption>
+      Estimated annual rate of 1.5+ inch precipitation days at San Diego Lindbergh.
+    </figcaption>
+  </figure>
+
+  <p>
+    The 1.5-inch threshold produces roughly 50–60 events across the full record.
+    The rate has trended upward since the mid-1970s — a real signal that holds
+    across bandwidth choices. Multi-year periods with no 1.5-inch events are
+    common, as are stretches with several events in close succession; the cycle
+    structure ties to ENSO phase.
+  </p>
+  <p>
+    At higher thresholds (2 inches and above), the data thins out fast: only 17
+    of the 85 years in record had a 2+ inch day, and only 5 had a 2.5+ inch
+    day. The rate curve here approaches "almost-zero with occasional spikes"
+    rather than a smooth trend, which is honest but means the rate estimate
+    carries large uncertainty at higher thresholds. The 1.5-inch threshold is
+    the sweet spot for a meaningful trend analysis.
+  </p>
+
+  <h3>Probability analysis</h3>
+
+  <figure>
+    {% include "analysis/_use_case_image.html" with src="use_cases/san_diego_precipitation/gev_annual_max.png" alt="San Diego annual maximum daily precipitation" %}
+    <figcaption>
+      Annual maximum daily precipitation per year at San Diego.
+    </figcaption>
+  </figure>
+
+  <figure>
+    {% include "analysis/_use_case_image.html" with src="use_cases/san_diego_precipitation/gev_return_levels.png" alt="San Diego return level curve" %}
+    <figcaption>
+      Return level plot with 95% parametric bootstrap confidence band.
+    </figcaption>
+  </figure>
+
+  <p>
+    The 2024 single-day maximum is the largest in the record. Unlike St. Louis,
+    where the 2022 outlier dominated the upper tail, San Diego's distribution
+    of annual maxima is broadly distributed — the historical record gives
+    reasonable coverage of the full plausible range rather than concentrating
+    near a single mode.
+  </p>
+  <p>
+    The GEV fit is a strong match for events above roughly 1.35 inches (about
+    the 50th percentile). The bucket diagnostic is clean in this range. Below
+    that, the fit is less informative, but the lower tail isn't what we care
+    about for extreme analysis.
+  </p>
+  <p>
+    The bootstrap 97.5th percentile of the return level estimate lines up
+    almost exactly with the observed 2.55 and 2.70 inch maxima — meaning these
+    observed extremes are consistent with what the fitted distribution
+    predicts. The 2024 record sits within the parametric CI of the return-level
+    curve. The return period for an event of that magnitude is 20–100 years
+    depending on which point estimate you take, with annual probability roughly
+    1–5%. This is a more confident interval than the St. Louis case because
+    the fit is better and the record doesn't contain a single dominant outlier.
+  </p>
+
+  <div class="takeaway">
+    <h4>Takeaways</h4>
+    <ul>
+      <li>The rate of 1.5-inch days has trended upward since the mid-1970s, consistently across bandwidths.</li>
+      <li>Higher thresholds (2"+, 2.5"+) thin out the data fast — the rate curves at those levels carry large uncertainty.</li>
+      <li>The GEV fits well at and above the median annual maximum; the 2024 record is consistent with a 20–100 year return-period event.</li>
+    </ul>
+  </div>
+
+  {# ====================================================================== #}
+  <h2 id="dallas-tmin">4. Dallas cold extremes (1939–present)</h2>
+  <p>
+    Dallas-Fort Worth has continuous daily-minimum-temperature records back to
+    1939. This case asks both the rate question (how often do nights of extreme
+    cold occur) and the magnitude question (what's the distribution of the
+    coldest night of the year). The recent reference point is the February
+    2021 polar vortex event, which produced one of the most severe cold snaps
+    in the record.
+  </p>
+
+  <div class="recipe">
+    <div class="recipe-line"><dt>Data source</dt><dd>GHCN-Daily station USW00013960 (Dallas-Fort Worth)</dd></div>
+    <div class="recipe-line"><dt>Element</dt><dd>TMIN (daily minimum temperature)</dd></div>
+    <div class="recipe-line"><dt>Thresholds</dt><dd>30, 20, 10, 0 °F (with &lt; operator)</dd></div>
+    <div class="recipe-line"><dt>Date range</dt><dd>1939–present</dd></div>
+    <div class="recipe-line"><dt>Analyses</dt><dd>Frequency (KDE) and Probability (GEV on annual minima)</dd></div>
+    <div class="recipe-line mt-2">
+      <a href="{% url 'analysis:ghcn_configure' 'USW00013960' %}?element=TMIN&operator=%3C&thresholds=30,+20,+10,+0">
+        Reproduce this on the live site →
+      </a>
+    </div>
+  </div>
+
+  <h3>Frequency analysis</h3>
+
+  <figure>
+    {% include "analysis/_use_case_image.html" with src="use_cases/dallas_tmin/frequency.png" alt="Rate of cold-extreme days at Dallas-Fort Worth" %}
+    <figcaption>
+      Estimated annual rate of cold-extreme days at Dallas-Fort Worth.
+    </figcaption>
+  </figure>
+
+  <p>
+    This is the cleanest signal of the four use cases. Days under 15°F at Dallas
+    have declined from a 1939-era rate of about 1.7 per year to about 0.6 per
+    year today — roughly a 65% reduction. Days under 10°F have declined even
+    more dramatically, from about 0.55 per year to about 0.13 per year, a 76%
+    reduction. The under-5°F and under-0°F curves follow the same pattern with
+    proportionally smaller numbers.
+  </p>
+  <p>
+    The confidence interval is tight across most of the record and the trend
+    holds at every threshold. There's no plausible "this might be a temporary
+    swing" reading of these numbers. The February 2021 polar vortex event is
+    visible as a small recent uptick in the rate, but it doesn't change the
+    long-run decline — one severe event still falls within what the long-term
+    trend allows.
+  </p>
+  <p>
+    Note that the threshold choice matters more here than for the precipitation
+    cases. Under 15°F is a meaningfully different kind of event from under 5°F
+    in terms of infrastructure impact (pipe freezing, heating capacity,
+    livestock losses). The 15°F line picks up moderately cold nights that
+    happen a few times per winter; the 0°F line picks up the historically
+    severe cold snaps.
+  </p>
+
+  <h3>Probability analysis</h3>
+
+  <figure>
+    {% include "analysis/_use_case_image.html" with src="use_cases/dallas_tmin/gev_annual_min.png" alt="Dallas annual minimum temperature" %}
+    <figcaption>
+      Annual minimum temperature per year at Dallas-Fort Worth.
+    </figcaption>
+  </figure>
+
+  <figure>
+    {% include "analysis/_use_case_image.html" with src="use_cases/dallas_tmin/gev_return_levels.png" alt="Dallas return level curve for annual minimum temperature" %}
+    <figcaption>
+      Return level plot for the cold-extreme distribution.
+    </figcaption>
+  </figure>
+
+  <p>
+    The 2021 winter event was historic, but in context. The minimum temperature
+    observed in 2021 ranks as the 4th coldest in the 84-year record. Three
+    previous events were colder, the most recent in the 1980s. The GEV fit gives
+    a reasonable picture overall, fitting the bulk and the deep-cold tail well;
+    it performs less well in the moderately-cold range.
+  </p>
+  <p>
+    The mean estimate of the return period for a 2021-magnitude event is
+    54–64 years, with annual probability around 1.6–1.8%. The parametric and
+    nonparametric bootstrap intervals agree closely, which is a good sign that
+    the GEV model fits the data without large model misspecification noise.
+  </p>
+  <p>
+    What's interesting about this case specifically: the frequency analysis says
+    cold extremes are becoming substantially rarer, but the probability analysis
+    says when they do occur, they can still match historical severity. Both
+    statements are true simultaneously — the rate at which cold snaps happen is
+    changing, but the distribution of the minimum within any given snap hasn't
+    necessarily changed in proportion. "Less frequent" doesn't automatically
+    mean "less severe." This is a useful conceptual lesson when communicating
+    results to non-technical audiences.
+  </p>
+
+  <div class="takeaway">
+    <h4>Takeaways</h4>
+    <ul>
+      <li>Cold extremes at Dallas have declined consistently and statistically clearly across all thresholds — roughly 65–76% fewer days at the 15°F and 10°F thresholds compared to mid-century rates.</li>
+      <li>The 2021 polar vortex event was severe (4th coldest in record) but consistent with a ~55-60 year return-period event.</li>
+      <li>"Less frequent" and "still severe when they happen" can both be true — present both findings when communicating to planners.</li>
+    </ul>
+  </div>
+
+  {# ====================================================================== #}
+  <h2 id="how-to-read">5. How to read this page</h2>
+  <p>
+    Each case is meant to demonstrate one way to use the analysis pipeline on
+    real data. The interpretations are about <em>how to read the charts</em>,
+    not statistical claims that should be cited in research without further
+    validation. If you're using these analyses in a publication or policy
+    document, run the analysis yourself with current data and parameters
+    appropriate to your question, and check the bootstrap confidence intervals
+    rather than the point estimates alone.
+  </p>
+  <p>
+    The "Reproduce this on the live site" link on each case loads the same
+    filters into the analysis pages, so you can run the same analysis on a
+    fresh dataset, change a threshold or bandwidth, and see how the results
+    shift. That kind of sensitivity exploration is often more informative than
+    any single result.
+  </p>
+  <p>
+    Methodology references for each step (kernel density estimation, bandwidth
+    selection, bias correction, GEV fitting, bootstrap) are on the
+    <a href="{% url 'analysis:methodology' %}">Methodology</a> page.
+  </p>
+</div>
+{% endblock %}

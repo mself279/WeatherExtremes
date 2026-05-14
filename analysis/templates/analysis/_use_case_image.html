@@ -1,0 +1,4 @@
+{% load static %}{# partial: <img> with onerror fallback to a placeholder div that names the missing path. Usage: {% include "analysis/_use_case_image.html" with src="use_cases/<slug>/<chart>.png" alt="..." %} #}<img src="{% static src %}"
+     alt="{{ alt }}"
+     loading="lazy"
+     onerror="this.onerror=null;var d=document.createElement('div');d.className='placeholder';d.innerHTML='Drop a screenshot at <code>static/{{ src }}</code> to populate this chart.';this.replaceWith(d);">
