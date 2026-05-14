@@ -71,9 +71,26 @@
 {% if summary is not None and event_type_spec %}
 <div class="d-flex align-items-end justify-content-between mb-2 mt-4">
   <h2 class="h5 mb-0">{{ event_type_spec.label }} events — {{ state_name }} ({{ params.begin_year }}–{{ params.end_year }})</h2>
-  <a href="{{ ncei_url }}" target="_blank" class="small text-muted" title="View raw NCEI CSV">
-    Raw CSV ↗
-  </a>
+  <div class="d-flex gap-3 align-items-center">
+    {% if summary.n_events > 0 %}
+    <form method="post" action="{% url 'analysis:storm_events_save' %}" class="d-inline">
+      {% csrf_token %}
+      <input type="hidden" name="statefips" value="{{ filter_values.statefips }}">
+      <input type="hidden" name="event_type" value="{{ filter_values.event_type }}">
+      <input type="hidden" name="begin_year" value="{{ filter_values.begin_year }}">
+      <input type="hidden" name="end_year" value="{{ filter_values.end_year }}">
+      <input type="hidden" name="tornfilter" value="{{ filter_values.tornfilter|default:'0' }}">
+      <input type="hidden" name="hailfilter" value="{{ filter_values.hailfilter|default:'0.00' }}">
+      <input type="hidden" name="windfilter" value="{{ filter_values.windfilter|default:'000' }}">
+      <button type="submit" class="btn btn-success btn-sm" title="Convert this filter result into an analyzable Dataset">
+        Save as dataset for analysis →
+      </button>
+    </form>
+    {% endif %}
+    <a href="{{ ncei_url }}" target="_blank" class="small text-muted" title="View raw NCEI CSV">
+      Raw CSV ↗
+    </a>
+  </div>
 </div>
 
 <div class="row g-3">

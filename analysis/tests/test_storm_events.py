@@ -237,6 +237,59 @@ def test_summarize_three_events_aggregates_correctly():
     assert s.magnitude_breakdown == {"EF1": 1, "EF3": 1, "EF5": 1}
 
 
+def test_transform_indicator_column_naming():
+    from analysis.services.storm_events.event_types import by_code
+    from analysis.services.storm_events.fetcher import FilterParams
+    from analysis.services.storm_events.transform import indicator_column_name, dataset_name
+
+    # Tornado F3+
+    spec = by_code("tornado")
+    p = FilterParams("29,MISSOURI", spec.ncei_value, 1950, 2024, tornfilter="3")
+    assert indicator_column_name(spec, p) == "TornadoF3plus"
+    assert dataset_name("Missouri", spec, p) == "Missouri Tornado F3+ (1950-2024)"
+
+    # Tornado (all)
+    p = FilterParams("29,MISSOURI", spec.ncei_value, 1950, 2024, tornfilter="0")
+    assert indicator_column_name(spec, p) == "Tornado"
+
+    # Hail 1.5"
+    spec_h = by_code("hail")
+    p = FilterParams("20,KANSAS", spec_h.ncei_value, 1996, 2024, hailfilter="1.50")
+    assert indicator_column_name(spec_h, p) == "Hail1p5in"
+    assert 'Hail 1.5"' in dataset_name("Kansas", spec_h, p)
+
+    # Thunderstorm wind 75 kt
+    spec_w = by_code("thunderstorm_wind")
+    p = FilterParams("17,ILLINOIS", spec_w.ncei_value, 1996, 2024, windfilter="075")
+    assert indicator_column_name(spec_w, p) == "ThunderstormWind75kt"
+    assert "75kt+" in dataset_name("Illinois", spec_w, p)
+
+    # Flash flood (no magnitude)
+    spec_f = by_code("flash_flood")
+    p = FilterParams("17,ILLINOIS", spec_f.ncei_value, 1996, 2024)
+    assert indicator_column_name(spec_f, p) == "FlashFlood"
+
+
+def test_transform_build_indicator_csv_round_trips():
+    from analysis.services.storm_events.transform import build_indicator_csv
+
+    rows = [
+        "1,Tornado,MO,29,A,1,01-JAN-2011 14:50:00,01-JAN-2011 15:00:00,2011,,EF3,0,0,$0,$0,0,0,0,0",
+        "2,Tornado,MO,29,B,1,22-MAY-2011 17:34:00,22-MAY-2011 18:00:00,2011,,EF5,0,0,$0,$0,0,0,0,0",
+        # Same day as the first — must dedup to one event-day.
+        "3,Tornado,MO,29,C,1,01-JAN-2011 16:00:00,01-JAN-2011 16:30:00,2011,,EF3,0,0,$0,$0,0,0,0,0",
+    ]
+    parsed = parse_events_csv(_csv(rows))
+    out = build_indicator_csv(parsed.df, begin_year=2011, end_year=2011, indicator_name="Tornado")
+
+    # 365 daily rows for 2011.
+    assert len(out) == 365
+    # Two event-days (01-JAN dedups; 22-MAY is separate).
+    assert int(out["Tornado"].sum()) == 2
+    # Event_Date is fractional year; first row is 2011.0
+    assert abs(out["Event_Date"].iloc[0] - 2011.0) < 1e-4
+
+
 def test_summarize_annual_damage_property_aggregates_by_year_full_range():
     # Two 2011 tornadoes and one 2020 — annual_damage_property should fill
     # 2012-2019 as zeros so the chart shows the gap visibly.

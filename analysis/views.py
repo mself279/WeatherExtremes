@@ -50,6 +50,7 @@ from .services.storm_events import event_types as se_event_types
 from .services.storm_events import fetcher as se_fetcher
 from .services.storm_events import states as se_states
 from .services.storm_events import summarize as se_summarize
+from .services.storm_events import transform as se_transform
 from .services.storm_events.formats import parse_events_csv
 from .services.io import parse_input
 from .services.pipeline import run_analysis
@@ -760,4 +761,111 @@ class StormEventsBrowseView(View):
             "state_name": state_name,
             "params": params,
             "ncei_url": se_fetcher.build_url(params),
+            # Pass the cleaned filter values back to the template so the
+            # "save as dataset" form can echo them in hidden inputs.
+            "filter_values": cd,
         })
+
+
+class StormEventsSaveDatasetView(View):
+    """POST: convert the current Storm Events filter result into a Dataset.
+
+    Re-fetches (from cache) the events matching the submitted filters, builds
+    an indicator-column CSV, persists it as a ``Dataset``, and redirects to
+    the dataset detail page where the user can run KDE analyses on it.
+    """
+
+    def post(self, request):
+        form = StormEventsBrowseForm(request.POST)
+        if not form.is_valid():
+            messages.error(request, "Invalid filter parameters; nothing saved.")
+            return redirect("analysis:storm_events_browse")
+
+        cd = form.cleaned_data
+        spec = se_event_types.by_code(cd["event_type"])
+        if spec is None:
+            messages.error(request, "Unknown event type.")
+            return redirect("analysis:storm_events_browse")
+
+        params = se_fetcher.FilterParams(
+            statefips=cd["statefips"],
+            event_type_ncei=spec.ncei_value,
+            begin_year=int(cd["begin_year"]),
+            end_year=int(cd["end_year"]),
+            tornfilter=cd.get("tornfilter") or "0" if spec.magnitude_field == "tornfilter" else "0",
+            hailfilter=cd.get("hailfilter") or "0.00" if spec.magnitude_field == "hailfilter" else "0.00",
+            windfilter=cd.get("windfilter") or "000" if spec.magnitude_field == "windfilter" else "000",
+        )
+
+        cache_dir = Path(settings.MEDIA_ROOT) / "storm_events_cache"
+        try:
+            csv_bytes = se_fetcher.fetch_csv(params, cache_dir)
+        except se_fetcher.FetchError as exc:
+            logger.exception("Storm Events fetch failed in save", extra={"params": params})
+            messages.error(request, f"NCEI fetch failed: {exc}")
+            return redirect("analysis:storm_events_browse")
+
+        parsed = parse_events_csv(csv_bytes)
+        if parsed.df.empty:
+            messages.warning(request, "No events match these filters — nothing to save.")
+            return redirect("analysis:storm_events_browse")
+
+        state_name = se_states.display_name(cd["statefips"])
+        indicator_name = se_transform.indicator_column_name(spec, params)
+        ds_name = se_transform.dataset_name(state_name, spec, params)
+
+        indicator_df = se_transform.build_indicator_csv(
+            parsed.df,
+            begin_year=int(cd["begin_year"]),
+            end_year=int(cd["end_year"]),
+            indicator_name=indicator_name,
+        )
+
+        out_buf = io.StringIO()
+        indicator_df.to_csv(out_buf, index=False)
+        csv_data = out_buf.getvalue().encode("utf-8")
+
+        event_days = int(indicator_df[indicator_name].sum())
+        total_days = int(len(indicator_df))
+
+        dataset = Dataset(
+            name=ds_name,
+            description=(
+                f"Derived from NOAA Storm Events: "
+                f"{spec.label} events in {state_name}, "
+                f"{params.begin_year}–{params.end_year}. "
+                f"{event_days} event-days out of {total_days} total days."
+            ),
+            indicator_columns=[indicator_name],
+            row_count=total_days,
+            min_year=float(indicator_df["Event_Date"].min()),
+            max_year=float(indicator_df["Event_Date"].max()),
+            source_station=None,
+            source_metadata={
+                "source": "storm_events",
+                "ncei_url": se_fetcher.build_url(params),
+                "state": state_name,
+                "event_type_code": spec.code,
+                "event_type_label": spec.label,
+                "tornfilter": params.tornfilter,
+                "hailfilter": params.hailfilter,
+                "windfilter": params.windfilter,
+                "begin_year": params.begin_year,
+                "end_year": params.end_year,
+                "event_days": event_days,
+                "indicator_column": indicator_name,
+            },
+        )
+        safe_state = state_name.lower().replace(" ", "_").replace(",", "")
+        fname = (
+            f"storm_events_{safe_state}_{indicator_name}_"
+            f"{params.begin_year}-{params.end_year}.csv"
+        )
+        dataset.file.save(fname, ContentFile(csv_data), save=True)
+
+        messages.success(
+            request,
+            f"Saved as dataset '{dataset.name}' — {event_days:,} event-days "
+            f"across {total_days:,} total days. Run an analysis below.",
+        )
+        return redirect(dataset.get_absolute_url())

@@ -50,6 +50,11 @@ urlpatterns = [
         name="storm_events_browse",
     ),
     path(
+        "storm-events/save/",
+        views.StormEventsSaveDatasetView.as_view(),
+        name="storm_events_save",
+    ),
+    path(
         "datasets/<uuid:pk>/gev/",
         views.GEVRunCreateView.as_view(),
         name="gev_create",
