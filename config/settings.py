@@ -141,17 +141,21 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
-# Django 5 STORAGES syntax. WhiteNoise compresses + hashes static assets.
-# We use a permissive manifest variant (manifest_strict=False) so that
-# {% static %} references to files not yet in the manifest fall back to a
-# plain URL instead of raising at template render time. The browser then
-# 404s on the missing file and any onerror handler runs.
+# Django 5 STORAGES syntax. WhiteNoise compresses static assets and sets
+# cache headers but does NOT fingerprint filenames with hashes — we use the
+# non-manifest variant because the Use Cases template references image paths
+# that aren't always on disk (placeholder pattern with onerror fallback).
+# The manifest variant raises ValueError at template render time for any
+# missing file, regardless of manifest_strict; the non-manifest variant lets
+# {% static %} cleanly return /static/<path> and lets the browser 404 / the
+# JS onerror handler take over. Tradeoff: less aggressive cache-busting; for
+# an alpha that's fine.
 STORAGES = {
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
     },
     "staticfiles": {
-        "BACKEND": "config.storage.PermissiveManifestStaticFilesStorage",
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
     },
 }
 
