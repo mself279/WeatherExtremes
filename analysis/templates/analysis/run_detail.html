@@ -52,6 +52,32 @@
   </div>
 </div>
 
+{% if run.parameters.indicator_column %}
+<div class="alert alert-info py-2 px-3 mb-3 small">
+  <strong>What this run analyzes:</strong>
+  Annual occurrence rate of <code>{{ run.parameters.indicator_column }}</code> (events per year), smoothed with a {{ run.parameters.bandwidth_years|floatformat:1 }}-year Gaussian kernel.
+  {% if run.dataset.source_metadata %}
+  Each event is a day where
+  <strong>{{ run.dataset.source_metadata.element }}</strong>
+  {{ run.dataset.source_metadata.operator }}
+  {% for t in run.dataset.source_metadata.thresholds_display %}{{ t }}{% if not forloop.last %}, {% endif %}{% endfor %}
+  {{ run.dataset.source_metadata.display_unit }}.
+  {% with element=run.dataset.source_metadata.element op=run.dataset.source_metadata.operator %}
+  {% if element == 'TMAX' and op == '≥' %} A rising curve means hot-day frequency is increasing — typical heat-wave signature.
+  {% elif element == 'TMAX' and op == '≤' %} A rising curve means cool-day frequency is increasing (less common — would suggest a cooling trend in daytime highs).
+  {% elif element == 'TMIN' and op == '≤' %} A falling curve means cold-night frequency is decreasing — classic winter-warming signal.
+  {% elif element == 'TMIN' and op == '≥' %} A rising curve means warm overnight lows are getting more common — a sensitive climate-change indicator.
+  {% elif element == 'PRCP' and op == '≥' %} A rising curve means heavy-rain days are getting more frequent — flooding / urban drainage implication.
+  {% elif element == 'SNOW' and op == '≥' %} A falling curve means big snow days are getting less common — typical mid-latitude winter signature.
+  {% endif %}
+  {% endwith %}
+  {% endif %}
+  The curve shows whether that rate is rising, falling, or stationary across the record.
+  <br>
+  <span class="text-muted">Bandwidth controls smoothness: wider = lower-resolution trend, narrower = more responsive but noisier. The MISE-minimizing value is a heuristic — cross-check it against the bandwidth-score plot below before reading too much into the peak year.</span>
+</div>
+{% endif %}
+
 {% if run.error %}
 <div class="alert alert-danger">
   <strong>Run failed.</strong>

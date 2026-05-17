@@ -53,6 +53,34 @@
   </div>
 </div>
 
+{% if run.parameters.element %}
+<div class="alert alert-info py-2 px-3 mb-3 small">
+  <strong>What this run analyzes:</strong>
+  {% with element=run.parameters.element direction=run.parameters.direction %}
+  {% if element == 'TMIN' and direction == 'min' %}
+    Coldest overnight low each year — winter cold extremes (e.g., polar-vortex events, hard freezes).
+  {% elif element == 'TMIN' and direction == 'max' %}
+    Warmest overnight low each year — summer heat retention. Overnight lows integrate humidity, urban thermal mass, and longwave radiation, so this is one of the cleanest climate-change fingerprints in the daily record.
+  {% elif element == 'TMAX' and direction == 'max' %}
+    Hottest day each year — peak heat extremes (afternoon heatwave intensity).
+  {% elif element == 'TMAX' and direction == 'min' %}
+    Coolest daily high each year — typically the chilliest afternoon in the cold season (an indicator of cold-air-mass intrusions).
+  {% elif element == 'PRCP' and direction == 'max' %}
+    Wettest single day each year — heavy-precipitation extremes (flooding / runoff design rainfall).
+  {% elif element == 'PRCP' and direction == 'min' %}
+    Driest single day each year. Usually not informative for daily PRCP — most stations record 0&nbsp;mm on at least one day per year, so the minima are degenerate.
+  {% elif element == 'SNOW' and direction == 'max' %}
+    Biggest single-day snowfall each year — snowstorm-intensity extremes.
+  {% elif element == 'SNWD' and direction == 'max' %}
+    Deepest snow depth on the ground each year — peak snowpack extremes.
+  {% else %}
+    Annual {% if direction == 'min' %}minimum{% else %}maximum{% endif %} of
+    <strong>{{ element }}</strong>. The {% if direction == 'min' %}minimum{% else %}maximum{% endif %} block-extreme convention was set when the run was created.
+  {% endif %}
+  {% endwith %}
+</div>
+{% endif %}
+
 {% if run.error %}
 <div class="alert alert-danger">
   <strong>Run failed.</strong>
