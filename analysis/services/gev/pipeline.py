@@ -80,6 +80,7 @@ def run_gev(
     full_diag = diagnostics.bucket_diagnostic(
         am.display, fit.location, fit.scale, fit.shape,
         bucket_width=params.bucket_width,
+        direction=am.direction,
     )
     # Tail diagnostic: from the 75th percentile up
     tail_min = float(np.quantile(am.display, 0.75))
@@ -87,6 +88,7 @@ def run_gev(
         am.display, fit.location, fit.scale, fit.shape,
         bucket_width=params.bucket_width,
         edge_min=tail_min,
+        direction=am.direction,
     )
     rl = diagnostics.return_levels(fit.location, fit.scale, fit.shape)
 

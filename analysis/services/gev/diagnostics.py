@@ -37,12 +37,16 @@ def bucket_diagnostic(
     bucket_width: float,
     edge_min: float | None = None,
     edge_max: float | None = None,
+    direction: str = "max",
 ) -> BucketDiagnostic:
     """Histogram-style observed-vs-expected diagnostic.
 
-    ``edge_min`` / ``edge_max`` default to the rounded data range. The
-    workbook used ``[0, 9.5]`` with width ``0.5`` for the full diagnostic
-    and ``[4.5, 9.5]`` for the tail-only diagnostic.
+    For ``direction == "min"``, ``location`` is the displayed (negated) value
+    and the underlying GEV was fit to ``-X``. The CDF of X at edge ``e`` is
+    then ``1 - gev_cdf(-e; -location, scale, shape)`` — the same negation
+    correction applied in :mod:`plots.histogram_pdf_figure`.
+
+    ``edge_min`` / ``edge_max`` default to the rounded data range.
     """
     x = np.asarray(maxima, dtype=float)
     if edge_min is None:
@@ -55,7 +59,11 @@ def bucket_diagnostic(
     edges = np.arange(edge_min, edge_max + bucket_width / 2, bucket_width)
     observed, _ = np.histogram(x, bins=edges)
 
-    cdf_at_edges = gev_cdf(edges, location, scale, shape)
+    if direction == "max":
+        cdf_at_edges = gev_cdf(edges, location, scale, shape)
+    else:
+        # F_X(e) = 1 - F_{-X}(-e); underlying μ_fit = -location.
+        cdf_at_edges = 1.0 - gev_cdf(-edges, -location, scale, shape)
     expected = float(len(x)) * np.diff(cdf_at_edges)
 
     sse = float(np.sum((observed - expected) ** 2))
