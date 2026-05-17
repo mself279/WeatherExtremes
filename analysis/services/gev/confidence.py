@@ -78,19 +78,38 @@ def parametric_bootstrap(
     fit: GEVFit,
     *,
     n_iter: int,
+    direction: str = "max",
     rng: np.random.Generator | None = None,
 ) -> BootstrapResult:
-    """Sample ``n_iter`` synthetic datasets from the fitted GEV; refit each."""
+    """Sample ``n_iter`` synthetic datasets from the fitted GEV; refit each.
+
+    For ``direction == "min"``, ``fit.location`` is the displayed (negated)
+    location; the underlying GEV was fit to -X. We sample from the underlying
+    fit, negate to X-space, then negate again and refit so the returned
+    location is in the same negated-back convention as the original fit.
+    """
     rng = rng or np.random.default_rng()
     n = fit.n_observations
+    # Underlying location used for sampling: for min-direction, recover μ_fit
+    # (the location parameter for -X) by negating the displayed location.
+    underlying_loc = -fit.location if direction == "min" else fit.location
+
     rows: list[tuple[float, float, float]] = []
     for _ in range(int(n_iter)):
         u = rng.uniform(1e-9, 1.0 - 1e-9, size=n)
-        sample = gev_quantile(u, fit.location, fit.scale, fit.shape)
+        sample_underlying = gev_quantile(u, underlying_loc, fit.scale, fit.shape)
         try:
-            refit = fit_gev(sample)
-            if refit.converged and np.isfinite(refit.log_likelihood):
-                rows.append((refit.location, refit.scale, refit.shape))
+            if direction == "min":
+                # sample_underlying lives in -X space; negate to get X samples,
+                # then negate again for fitting in -X space, and negate location
+                # back when storing.
+                refit = fit_gev(sample_underlying)  # already in -X space
+                if refit.converged and np.isfinite(refit.log_likelihood):
+                    rows.append((-refit.location, refit.scale, refit.shape))
+            else:
+                refit = fit_gev(sample_underlying)
+                if refit.converged and np.isfinite(refit.log_likelihood):
+                    rows.append((refit.location, refit.scale, refit.shape))
         except Exception:  # noqa: BLE001 - non-converging fits skipped
             continue
     return _summarize(np.array(rows), method="parametric", n_iter=int(n_iter))
@@ -100,9 +119,16 @@ def nonparametric_bootstrap(
     maxima: np.ndarray,
     *,
     n_iter: int,
+    direction: str = "max",
     rng: np.random.Generator | None = None,
 ) -> BootstrapResult:
-    """Resample observed maxima with replacement; refit each."""
+    """Resample observed values with replacement; refit each.
+
+    For ``direction == "min"``, negate samples before fitting (so the GEV is
+    fit to -X, matching the original MLE convention) and negate the location
+    back for storage. This makes the nonparametric mean / CI directly
+    comparable to the MLE point estimate.
+    """
     rng = rng or np.random.default_rng()
     x = np.asarray(maxima, dtype=float)
     n = x.size
@@ -110,9 +136,14 @@ def nonparametric_bootstrap(
     for _ in range(int(n_iter)):
         sample = rng.choice(x, size=n, replace=True)
         try:
-            refit = fit_gev(sample)
-            if refit.converged and np.isfinite(refit.log_likelihood):
-                rows.append((refit.location, refit.scale, refit.shape))
+            if direction == "min":
+                refit = fit_gev(-sample)
+                if refit.converged and np.isfinite(refit.log_likelihood):
+                    rows.append((-refit.location, refit.scale, refit.shape))
+            else:
+                refit = fit_gev(sample)
+                if refit.converged and np.isfinite(refit.log_likelihood):
+                    rows.append((refit.location, refit.scale, refit.shape))
         except Exception:  # noqa: BLE001
             continue
     return _summarize(np.array(rows), method="nonparametric", n_iter=int(n_iter))

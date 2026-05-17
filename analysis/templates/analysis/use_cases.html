@@ -448,7 +448,7 @@
 
   <figure>
     {% include "analysis/_use_case_image.html" with src="use_cases/dallas_tmin/newplot-6.png" alt="Dallas histogram vs GEV PDF" %}
-    <figcaption>Histogram with fitted GEV(μ=17.58, σ=5.56, ξ=−0.185). The fitted PDF and the empirical histogram don't align well — the histogram is left-skewed (long cold tail) but the fitted curve isn't capturing that. A real GEV-on-minima limitation worth being aware of.</figcaption>
+    <figcaption>Histogram with two fitted PDFs overlaid: the MLE (red) and the nonparametric bootstrap mean (orange, dashed). The two curves disagree visibly for this dataset — a sign that GEV may not be the ideal model for Dallas annual minima.</figcaption>
   </figure>
 
   <figure>

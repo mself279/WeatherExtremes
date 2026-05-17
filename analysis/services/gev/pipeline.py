@@ -107,11 +107,13 @@ def run_gev(
     method = params.bootstrap_method
     if method in ("parametric", "both"):
         parametric_res = confidence.parametric_bootstrap(
-            fit, n_iter=params.bootstrap_iterations, rng=rng,
+            fit, n_iter=params.bootstrap_iterations,
+            direction=am.direction, rng=rng,
         )
     if method in ("nonparametric", "both"):
         nonparametric_res = confidence.nonparametric_bootstrap(
-            am.display, n_iter=params.bootstrap_iterations, rng=rng,
+            am.display, n_iter=params.bootstrap_iterations,
+            direction=am.direction, rng=rng,
         )
 
     # ---- 5. Return-level CI from parametric bootstrap (point-wise across T)
@@ -147,6 +149,12 @@ def run_gev(
             location=fit.location, scale=fit.scale, shape=fit.shape,
             display_unit=am.spec.display_unit,
             title=f"{title_prefix} — empirical vs GEV PDF",
+            direction=am.direction,
+            nonparam_mean=(
+                nonparametric_res.means
+                if nonparametric_res is not None and nonparametric_res.n_successful > 0
+                else None
+            ),
         ),
         "bucket_full": plots.bucket_figure(
             full_diag, am.spec.display_unit,

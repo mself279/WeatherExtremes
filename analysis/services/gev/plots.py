@@ -59,8 +59,17 @@ def histogram_pdf_figure(
     location: float, scale: float, shape: float,
     display_unit: str,
     title: str,
+    direction: str = "max",
+    nonparam_mean: tuple[float, float, float] | None = None,
 ) -> str:
-    """Empirical histogram (density-normalized) with fitted GEV PDF overlay."""
+    """Empirical histogram (density-normalized) with fitted GEV PDF overlay.
+
+    For ``direction == "min"``, ``location`` is the displayed/negated location;
+    the underlying fit is to -X. The PDF of X at point x is then
+    ``gev_pdf(-x; -location, scale, shape)``. If ``nonparam_mean`` is supplied
+    we plot a second dashed curve so users can visually compare the MLE and
+    nonparametric bootstrap mean fits.
+    """
     import plotly.graph_objects as go
 
     fig = go.Figure()
@@ -73,15 +82,38 @@ def histogram_pdf_figure(
     x_min = float(np.min(maxima)) - 1.5 * np.std(maxima)
     x_max = float(np.max(maxima)) + 1.5 * np.std(maxima)
     xx = np.linspace(x_min, x_max, 400)
-    pdf = gev_pdf(xx, location, scale, shape)
+
+    def _pdf_for_direction(loc: float, scl: float, shp: float) -> np.ndarray:
+        if direction == "max":
+            return gev_pdf(xx, loc, scl, shp)
+        # Min-direction: GEV was fit to -X, displayed location is -μ_fit.
+        # PDF of X at x is gev_pdf(-x; μ_fit, σ, ξ) = gev_pdf(-x; -loc, σ, ξ).
+        return gev_pdf(-xx, -loc, scl, shp)
+
+    pdf_mle = _pdf_for_direction(location, scale, shape)
     fig.add_trace(go.Scatter(
-        x=xx, y=pdf, mode="lines",
+        x=xx, y=pdf_mle, mode="lines",
         line=dict(color="red", width=2.5),
-        name=f"GEV(μ={location:.2f}, σ={scale:.2f}, ξ={shape:.3f})",
+        name=f"MLE: GEV(μ={location:.2f}, σ={scale:.2f}, ξ={shape:.3f})",
     ))
+
+    if nonparam_mean is not None:
+        np_loc, np_scale, np_shape = nonparam_mean
+        if np.all(np.isfinite([np_loc, np_scale, np_shape])) and np_scale > 0:
+            pdf_np = _pdf_for_direction(np_loc, np_scale, np_shape)
+            fig.add_trace(go.Scatter(
+                x=xx, y=pdf_np, mode="lines",
+                line=dict(color="rgb(255,127,14)", width=2.5, dash="dash"),
+                name=(
+                    f"Nonparametric mean: GEV(μ={np_loc:.2f}, "
+                    f"σ={np_scale:.2f}, ξ={np_shape:.3f})"
+                ),
+            ))
+
+    extreme_word = "maximum" if direction == "max" else "minimum"
     fig.update_layout(
         title=title,
-        xaxis_title=f"Annual maximum ({display_unit})",
+        xaxis_title=f"Annual {extreme_word} ({display_unit})",
         yaxis_title="Density",
         **_LAYOUT_DEFAULTS,
     )
