@@ -19,6 +19,43 @@
     <a class="btn btn-outline-primary" href="{% url 'analysis:gev_create' dataset.pk %}">Run GEV analysis</a>
     {% endif %}
     <a class="btn btn-primary" href="{% url 'analysis:run_create' dataset.pk %}">New occurrence-rate run</a>
+    <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteDatasetModal">Delete dataset</button>
+  </div>
+</div>
+
+<div class="modal fade" id="deleteDatasetModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Delete this dataset?</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to delete <strong>{{ dataset.name }}</strong>?</p>
+        {% if runs or gev_runs %}
+        <p class="text-danger small mb-2">
+          This will also delete <strong>
+          {% if runs %}{{ runs|length }} occurrence-rate run{{ runs|length|pluralize }}{% endif %}
+          {% if runs and gev_runs %} and {% endif %}
+          {% if gev_runs %}{{ gev_runs|length }} GEV run{{ gev_runs|length|pluralize }}{% endif %}
+          </strong>
+          tied to this dataset.
+        </p>
+        {% endif %}
+        <p class="text-muted small mb-0">
+          This permanently removes the dataset row, the stored CSV file, and any
+          analysis runs associated with it. The action cannot be undone.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <form method="post" action="{% url 'analysis:dataset_delete' dataset.pk %}" class="d-inline">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{% url 'analysis:dataset_list' %}">
+          <button type="submit" class="btn btn-danger">Delete dataset</button>
+        </form>
+      </div>
+    </div>
   </div>
 </div>
 

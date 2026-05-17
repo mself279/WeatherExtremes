@@ -288,6 +288,46 @@ class DatasetDetailView(DetailView):
         return ctx
 
 
+class DatasetDeleteView(View):
+    """POST-only delete for a Dataset.
+
+    Cascades through the FK to AnalysisRun and GEVRun (which free their figure
+    JSON blobs in Postgres) and explicitly removes the CSV file from MEDIA_ROOT.
+    """
+
+    def post(self, request, pk):
+        dataset = get_object_or_404(Dataset, pk=pk)
+        name = dataset.name
+        n_runs = dataset.runs.count()
+        n_gev = dataset.gev_runs.count()
+
+        # Remove the CSV from disk. Django's FileField.delete() handles the
+        # storage cleanup but does not delete the model row by itself.
+        if dataset.file and dataset.file.name:
+            try:
+                dataset.file.delete(save=False)
+            except Exception:  # noqa: BLE001 - file may already be gone
+                logger.warning(
+                    "Failed to delete dataset file for %s",
+                    dataset.pk,
+                    exc_info=True,
+                )
+
+        dataset.delete()  # cascades to AnalysisRun and GEVRun
+
+        parts = [f"Deleted dataset '{name}'"]
+        cascade_parts = []
+        if n_runs:
+            cascade_parts.append(f"{n_runs} occurrence-rate run{'s' if n_runs != 1 else ''}")
+        if n_gev:
+            cascade_parts.append(f"{n_gev} GEV run{'s' if n_gev != 1 else ''}")
+        if cascade_parts:
+            parts.append("and " + " + ".join(cascade_parts))
+        messages.success(request, " ".join(parts) + ".")
+
+        return redirect(request.POST.get("next") or reverse("analysis:dataset_list"))
+
+
 class AnalysisRunCreateView(View):
     """Render the form on GET; execute the analysis on POST."""
 

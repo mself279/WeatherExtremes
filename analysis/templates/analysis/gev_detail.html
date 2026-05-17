@@ -96,11 +96,15 @@
 <div class="card p-3 mb-3">
   <h2 class="h6 text-uppercase text-muted mb-2">Reference exceedance</h2>
   <div>
-    P(annual {% if run.parameters.direction == 'min' %}min{% else %}max{% endif %} ≥
+    {% if run.parameters.direction == 'min' %}
+    P(annual min ≤
+    {% else %}
+    P(annual max ≥
+    {% endif %}
     <strong>{{ run.summary.exceedance_reference_value|floatformat:2 }} {{ run.summary.display_unit }}</strong>
     in any given year) = <strong>{{ run.summary.exceedance_probability|floatformat:4 }}</strong>
     &middot; expected return period ≈ <strong>{{ run.summary.expected_return_period_years|floatformat:1 }} years</strong>
-    <span class="text-muted small">(reference: {{ run.summary.exceedance_reference_year }} observed maximum)</span>
+    <span class="text-muted small">(reference: {{ run.summary.exceedance_reference_year }} observed {% if run.parameters.direction == 'min' %}minimum{% else %}maximum{% endif %})</span>
   </div>
 </div>
 {% endif %}

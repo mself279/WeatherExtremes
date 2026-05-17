@@ -90,7 +90,9 @@ def run_gev(
         edge_min=tail_min,
         direction=am.direction,
     )
-    rl = diagnostics.return_levels(fit.location, fit.scale, fit.shape)
+    rl = diagnostics.return_levels(
+        fit.location, fit.scale, fit.shape, direction=am.direction,
+    )
 
     # Reference year/value (defaults: last year of record + that year's max)
     ref_year = params.reference_year if params.reference_year is not None else int(am.years[-1])
@@ -99,9 +101,14 @@ def run_gev(
     else:
         idx = int(np.argmax(am.years == ref_year))
         ref_value = float(am.display[idx])
-    ex = diagnostics.exceedance(fit.location, fit.scale, fit.shape, ref_value, ref_year)
+    ex = diagnostics.exceedance(
+        fit.location, fit.scale, fit.shape, ref_value, ref_year,
+        direction=am.direction,
+    )
 
-    fq = diagnostics.fitted_quantiles(fit.location, fit.scale, fit.shape)
+    fq = diagnostics.fitted_quantiles(
+        fit.location, fit.scale, fit.shape, direction=am.direction,
+    )
 
     # ---- 4. Bootstrap CIs
     parametric_res = None
@@ -121,14 +128,20 @@ def run_gev(
     # ---- 5. Return-level CI from parametric bootstrap (point-wise across T)
     rl_ci = None
     if parametric_res is not None and parametric_res.samples.size:
-        # For each bootstrap parameter set, compute return levels at the same T
+        # For each bootstrap parameter set, compute return levels at the same T.
+        # Direction-aware via the same diagnostics helper so min-direction fits
+        # produce cold-extreme return levels, not their warm-side equivalent.
         T = rl.return_periods
         n_boot = parametric_res.samples.shape[0]
         boot_levels = np.empty((n_boot, len(T)))
         for k in range(n_boot):
             l, s, sh = parametric_res.samples[k]
             try:
-                boot_levels[k] = gev_return_level(T, float(l), float(s), float(sh))
+                boot_levels[k] = diagnostics.return_levels(
+                    float(l), float(s), float(sh),
+                    return_periods=T,
+                    direction=am.direction,
+                ).levels
             except Exception:  # noqa: BLE001
                 boot_levels[k] = np.nan
         with np.errstate(invalid="ignore"):

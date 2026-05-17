@@ -478,20 +478,15 @@
     shape parameter is mildly negative, which means the cold tail of the
     distribution is bounded below — under this model the annual minimum can't
     be much colder than about −12°F. The 2021 polar vortex's ~2°F minimum
-    sits well within the fitted distribution; the bucket diagnostic charts
-    above were generated with an earlier version of the code and may show
-    apparent misalignment that would be largely resolved on a re-run.
+    sits well within the fitted distribution.
   </p>
   <p>
-    One conceptual subtlety for cold extremes: GEV models annual <em>maxima</em>,
-    so for annual minimums we fit GEV to −X. The return-level curve in our
-    pipeline is then in the "warm end of the cold distribution" direction —
-    "the warmest annual minimum exceeded once every T years" — which is the
-    opposite of what most users of cold-extreme analyses want. For
-    engineering decisions about cold-weather infrastructure, focus on the
-    frequency analysis above (which is directly interpretable) rather than
-    reading the return-level point estimates as "the worst cold event
-    expected in T years."
+    The return-level chart for cold extremes reads "the value the annual
+    minimum falls below once every T years" — the 100-year return level
+    here is roughly the temperature you'd expect the coldest night to
+    drop below about once per century. The bootstrap CI on the deep tail
+    (200-year, 500-year) is wide because we have few observations that far
+    out; treat point estimates accordingly.
   </p>
 
   <div class="takeaway">
@@ -499,7 +494,7 @@
     <ul>
       <li>Cold extremes at Dallas have declined consistently across all thresholds — roughly 50–60% fewer days at or below 15°F compared to mid-century rates.</li>
       <li>The 2021 polar vortex was severe (one of the coldest minimums in the record) but the frequency analysis still shows a long-run decline.</li>
-      <li>The GEV fit on annual minimums is credible — parametric and nonparametric bootstrap distributions agree and the fitted PDF matches the histogram. The return-level interpretation for min-direction fits is unusual though (warm side of the cold distribution), so prefer the frequency analysis for cold-event planning.</li>
+      <li>The GEV fit on annual minimums is credible — both bootstrap methods agree, the PDF matches the histogram, and the return-level chart reads cold-event severity directly (smaller temperatures = rarer events).</li>
     </ul>
   </div>
 

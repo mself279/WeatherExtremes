@@ -30,6 +30,11 @@ urlpatterns = [
         name="dataset_detail",
     ),
     path(
+        "datasets/<uuid:pk>/delete/",
+        views.DatasetDeleteView.as_view(),
+        name="dataset_delete",
+    ),
+    path(
         "datasets/<uuid:pk>/analyze/",
         views.AnalysisRunCreateView.as_view(),
         name="run_create",

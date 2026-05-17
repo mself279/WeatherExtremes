@@ -33,7 +33,17 @@
       <td class="text-end">{{ d.row_count|default:"—" }}</td>
       <td class="text-end">{% if d.min_year %}{{ d.min_year|floatformat:1 }} – {{ d.max_year|floatformat:1 }}{% else %}—{% endif %}</td>
       <td>{{ d.created_at|date:"Y-m-d" }}</td>
-      <td><a class="btn btn-sm btn-outline-primary" href="{% url 'analysis:run_create' d.pk %}">Analyze</a></td>
+      <td>
+        <div class="btn-group">
+          <a class="btn btn-sm btn-outline-primary" href="{% url 'analysis:run_create' d.pk %}">Analyze</a>
+          <form method="post" action="{% url 'analysis:dataset_delete' d.pk %}" class="d-inline"
+                onsubmit="return confirm('Delete dataset \'{{ d.name|escapejs }}\' and all of its runs? This cannot be undone.');">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{% url 'analysis:dataset_list' %}">
+            <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete this dataset and all runs tied to it">&times;</button>
+          </form>
+        </div>
+      </td>
     </tr>
     {% endfor %}
   </tbody>
