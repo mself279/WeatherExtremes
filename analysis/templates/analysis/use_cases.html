@@ -452,8 +452,13 @@
   </figure>
 
   <figure>
-    {% include "analysis/_use_case_image.html" with src="use_cases/dallas_tmin/newplot-7.png" alt="Dallas return level plot" %}
-    <figcaption>Return level curve with 95% parametric CI. The 100-year return level is around 35°F (in the warm-min direction — see note below).</figcaption>
+    {% include "analysis/_use_case_image.html" with src="use_cases/dallas_tmin/return_level_plot.png" alt="Dallas return level plot" %}
+    <figcaption>Return level curve with 95% parametric CI. The curve decreases as return period grows — colder events correspond to longer return periods. The 100-year return level is about 0.3°F; the 50-year level (~2°F) is close to what the February 2021 polar vortex produced.</figcaption>
+  </figure>
+
+  <figure>
+    {% include "analysis/_use_case_image.html" with src="use_cases/dallas_tmin/return_levels.png" alt="Dallas return levels table" %}
+    <figcaption>Return level table from 2 to 1000 years. Cold extremes deepen as the return period grows but flatten near the GEV's lower support bound (≈ −12°F under this fit).</figcaption>
   </figure>
 
   <figure>
